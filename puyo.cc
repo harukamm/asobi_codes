@@ -86,11 +86,6 @@ void SearchSides(int x, int y, char target) {
   SearchSides(x, y + 1, target);
   SearchSides(x + 1, y, target);
   SearchSides(x, y - 1, target);
-
-  // if puyo in (x, y) is isolated,
-  // it doesn't need any more search.
-  if(rensaLine.size() < 3)
-    checkBuf[x][y] = true;
 }
 
 bool UpdateScreen() {
