@@ -57,10 +57,11 @@ void diff(int* a, int* b, int al, int bl) {
   i = hsize - 1;
   j = wsize - 1;
   std::vector<line_t> result;
-  while(0 < i && 0 < j) {
-    int c1 = graph[i][j - 1];
-    int c2 = graph[i - 1][j];
-    int c3 = a[i - 1] == b[j - 1] ? graph[i - 1][j - 1] : INT_MAX;
+  while(0 < i || 0 < j) {
+    int c1 = 0 < j ? graph[i][j - 1] : INT_MAX;
+    int c2 = 0 < i ? graph[i - 1][j] : INT_MAX;
+    int c3 = (0 < i && 0 < j && a[i - 1] == b[j - 1])
+		  ? graph[i - 1][j - 1] : INT_MAX;
     int min = min3(c1, c2, c3);
 
     line_t line;
@@ -79,20 +80,6 @@ void diff(int* a, int* b, int al, int bl) {
       i--;
     }
     result.push_back(line);
-  }
-  while(0 < j) {
-    line_t line;
-    line.sign = '+';
-    line.src = b[j - 1];
-    result.push_back(line);
-    j--;
-  }
-  while(0 < i) {
-    line_t line;
-    line.sign = '-';
-    line.src = a[i - 1];
-    result.push_back(line);
-    i--;
   }
 
   // Output result
