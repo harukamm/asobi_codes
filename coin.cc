@@ -16,7 +16,7 @@ int calc(int m, int i) {
   int coin = coins[i];
   for(int j = 0;; j++) {
     int rest = m - (coin * j);
-	if(rest < 0) break;
+    if(rest < 0) break;
     x += calc(rest, i + 1);
   }
   return x;
