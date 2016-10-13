@@ -46,7 +46,7 @@ void UpdatePuyosToRemove() {
   }
 }
 
-// Return true if renewing screen arr happened more than once.
+// Return true if renewing screen arr has happened.
 bool ApplyPuyosToRemove() {
   int count = 0;
   bool renewed = false;
