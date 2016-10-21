@@ -7,15 +7,14 @@ end
 
 def isSubstring_sf (str, patn)
   diffl = str.length - patn.length
-  p1 = p2 = 0
+  p1 = 0
   while p1 <= diffl do
-    p1_tmp = p1
-    while str[p1] == patn[p2] do
-      p1 += 1
-      p2 += 1
-      return true if p2 == patn.length
+    i = 0
+    while str[p1 + i] == patn[i] do
+      i += 1
+      return true if i == patn.length
     end
-    p1, p2 = p1_tmp + 1, 0
+    p1 += 1
   end
   return false
 end
