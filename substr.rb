@@ -20,7 +20,7 @@ def isSubstring_sf (str, patn)
 end
 
 def test
-  str = "hogehogehogehogehoge2"
+  str = "hohogehogehogehoge2"
   patn = "ge2"
   puts (isSubstring_re(str, patn))
   puts (isSubstring_sf(str, patn))
