@@ -23,7 +23,7 @@ let check_bst tree =
   in
   let lst = getlst tree in
   let sorted1 = List.sort (fun a b -> if a < b then -1 else 1) lst in
-  let sorted2 = List.sort (fun _ _ -> -1) sorted1 in (* List.rev *)
+  let sorted2 = List.sort (fun _ _ -> 1) sorted1 in (* List.rev *)
   lst = sorted1 || lst = sorted2
 
 let test1 = check_bst tree1 = true
