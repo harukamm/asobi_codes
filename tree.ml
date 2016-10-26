@@ -129,5 +129,33 @@ let rec make_bst lst =
 (* unary tree *)
 let unary n = Node (Empty, n, Empty)
 
-let list1 = [1; 2; 7; 10; 50; 70; 100; 200]
-let test1 = make_bst list1 = Node (Node (Node (unary 1, 2, Empty), 7, unary 10), 50, Node (unary 70, 100, unary 200))
+let tree6 = make_bst [1; 2; 7; 10; 50; 70; 100; 200]
+let test1 = tree6 = Node (Node (Node (unary 1, 2, Empty), 7, unary 10), 50, Node (unary 70, 100, unary 200))
+
+(* Get the first common ancestor of given two nodes *)
+(* each node is unique *)
+exception Found of int
+(* get_ances : int -> int -> int tree_t -> int option *)
+let get_ances n1 n2 tree =
+  let eq x n = if x = n then Some (n) else None in
+  let rec inner tr = match tr with
+      Empty -> (None, None)
+    | Node (l, v, r) ->
+       begin
+	 match (inner l, inner r) with
+	   ((None, None), (None, None)) -> (eq v n1, eq v n2)
+	 | ((Some x, None), (None, Some y))
+	 | ((None, Some y), (Some x, None)) -> raise (Found (v))
+	 | ((Some x, None), (None, None))
+	 | ((None, None), (Some x, None)) -> (Some x, eq v n2)
+	 | ((None, Some y), (None, None))
+	 | ((None, None), (None, Some y)) -> (eq v n1, Some y)
+	 | _ -> failwith "Should not happen"
+       end
+  in try let _ = inner tree in None with Found v -> Some v
+
+let test1 = get_ances 1 70 tree6 = Some (50)
+let test2 = get_ances 2 10 tree6 = Some (7)
+let test3 = get_ances 70 200 tree6 = Some (100)
+let test4 = get_ances 10 70 tree6 = Some (50)
+let test5 = (try let _ = get_ances (-1) 50 tree6 in None with _ -> None) = None
