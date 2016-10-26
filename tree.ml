@@ -7,6 +7,8 @@ type 'a tree_t = Empty
 let tree1 = Node (Empty, "a", Empty)
 let tree2 = Node (tree1, "b", Node (Empty, "c", Empty))
 let tree3 = Node (tree2, "b", Empty)
+let tree4 = Node (Node (Empty, "f", Empty), "f", Node (Empty, "f", Empty))
+let tree5 = Node (tree4, "k", Node (Empty, "k", Empty))
 
 (* kuso *)
 (* check_bst : 'a tree -> bool *)
@@ -27,6 +29,8 @@ let check_bst tree =
 let test1 = check_bst tree1 = true
 let test2 = check_bst tree2 = true
 let test3 = check_bst tree3 = false
+let test4 = check_bst tree4 = true (* not correct *)
+let test5 = check_bst tree5 = true (* not correct *)
 
 type order = Desc1 (* max (r) <= v < min (l) *)
            | Desc2 (* max (r) < v <= min (l) *)
@@ -83,3 +87,5 @@ let check_bst2 tree =
 let test1 = check_bst2 tree1 = true
 let test2 = check_bst2 tree2 = true
 let test3 = check_bst2 tree3 = false
+let test4 = check_bst2 tree4 = false
+let test5 = check_bst2 tree5 = false
