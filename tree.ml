@@ -89,3 +89,45 @@ let test2 = check_bst2 tree2 = true
 let test3 = check_bst2 tree3 = false
 let test4 = check_bst2 tree4 = false
 let test5 = check_bst2 tree5 = false
+
+(* check_blc : 'a tree_t -> bool *)
+let check_blc tree =
+  let rec height1 tr = match tr with
+      Empty -> 0
+    | Node (l, v, r) ->
+       let (lh, rh) = (height1 l, height1 r) in
+       let _ = if 1 < abs (lh - rh) then raise Not_found in
+       1 + max lh rh
+  in try let _ = height1 tree in true with Not_found -> false
+
+let test1 = check_blc tree1 = true
+let test2 = check_blc tree2 = true
+let test3 = check_blc tree3 = false
+let test4 = check_blc tree4 = true
+let test5 = check_blc tree5 = true
+
+(* max_pass : 'a tree_t -> int *)
+let rec max_pass tree = match tree with
+    Empty -> []
+  | Node (l, v, r) ->
+     let (lp, rp) = (max_pass l, max_pass r) in
+     if List.length lp < List.length rp then v :: rp else v :: lp
+
+(* Given a sorted list, whose each element is unique. *)
+(* make_bst : int list -> int tree_t *)
+let rec make_bst lst =
+  (* Get nth element's and its haed and tail *)
+  let rec head_tail list hd n = match list with
+      [] -> raise Not_found
+    | x :: xs when n = 0 -> (List.sort (fun _ _ -> 1) hd, x, xs)
+    | x :: xs -> head_tail xs (x :: hd) (n - 1)
+  in
+  if lst = [] then Empty
+  else let (hd, nth, tl) = head_tail lst [] (List.length lst / 2) in
+       Node (make_bst hd, nth, make_bst tl)
+
+(* unary tree *)
+let unary n = Node (Empty, n, Empty)
+
+let list1 = [1; 2; 7; 10; 50; 70; 100; 200]
+let test1 = make_bst list1 = Node (Node (Node (unary 1, 2, Empty), 7, unary 10), 50, Node (unary 70, 100, unary 200))
