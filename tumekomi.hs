@@ -1,4 +1,4 @@
--- Hajimete no Haskell
+-- Hajimete no Haskell 
 -- 2016-10-29
 
 sum1 :: Num a => [a] -> a
