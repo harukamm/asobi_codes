@@ -11,44 +11,33 @@ typedef struct {
   int* arr;
 } set_t;
 
-void min_max(int n, int* arr, int* min, int* max, int* min_u, int* max_u) {
+void min_max(int n, int* arr, int* min, int* max) {
   int min2 = 5000;
   int max2 = -1;
-  int min_u2, max_u2 = 0;
   for(int i = 0; i < n; i++) {
-    if(min2 == arr[i]) min_u2++;
-    if(max2 == arr[i]) max_u2++;
     if(arr[i] < min2) {
       min2 = arr[i];
-      min_u2 = 1;
     }
     if(max2 < arr[i]) {
       max2 = arr[i];
-      max_u2 = 1;
     }
   }
   *min = min2;
   *max = max2;
-  *min_u = min_u2;
-  *max_u = max_u2;
 }
 
 // O(Emi + mi)
 void calc1(int len, set_t* sets) {
-  int min, max, sum, min_u, max_u, num = 0;
+  int min, max, sum;
   for(int i = 0; i < len; i++) {
     int n = sets[i].n;
     int* arr = sets[i].arr;
-    min_max(n, arr, &min, &max, &min_u, &max_u);
-    num = max_u + min_u - 2;
-    sum = max * (max_u - 1) + min * (min_u - 1);
+    min_max(n, arr, &min, &max);
+    sum = 0;
     for(int k = 0; k < n; k++) {
-      if(arr[k] == max || arr[k] == min)
-        continue;
       sum += arr[k];
-      num++;
     }
-    int ret = sum / num;
+    int ret = sum / (n - 2);
     std::cout << ret << "\n";
   }
 }
