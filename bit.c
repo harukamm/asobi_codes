@@ -8,6 +8,7 @@ int insertBit(int n, int m, int i, int j) {
   return (n & ~mask) | (m << i);
 }
 
+
 int main(void) {
   int n2 = insertBit(0x400, 0x13, 2, 6);
   printf("0x%08x\n", n2);
