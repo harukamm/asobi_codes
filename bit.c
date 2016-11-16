@@ -47,7 +47,6 @@ int isOne1Bit(int n) {
   return (n & (n - 1)) == 0;
 }
 
-// Returns the next largest integer that has the same number of 1bits.
 int getLargest(int n) {
   int mask1 = 1;
   if(n == 0) return 0;
