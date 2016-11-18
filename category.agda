@@ -1,6 +1,6 @@
 open import Relation.Binary.PropositionalEquality
 open ≡-Reasoning
-open import Data.Product
+open import Data.Product hiding (<_,_>; ,_)
 
 -- Basics
 --- Categories
@@ -493,6 +493,15 @@ bproduct-unique-refl {A}{B} AxB = proj₁ (_X_.proof AxB {_} {π₁} {π₂})
   where π₁ = _X_.π₁ AxB
         π₂ = _X_.π₂ AxB
 
+morC-unique→f≡g : {A B : obC} → morC-unique A to B →
+                  {f : morC A B} → {g : morC A B} → f ≡ g
+morC-unique→f≡g uni {f} {g} = ≡-trans p1 (sym p2)
+  where h = morC-unique_to_.m uni
+        p1 : f ≡ h
+        p1 = morC-unique_to_.unique uni f
+        p2 : g ≡ h
+        p2 = morC-unique_to_.unique uni g
+
 -- Theorem 2.2.2
 {- For any objects A and B, a binary product of A and B is unique up to isomorphism if it exists. -}
 AxB-unique : {A : obC} → {B : obC} → (AXB : A X B) → (AXB′ : A X B) → _X_.obj AXB ≅ _X_.obj AXB′
@@ -536,10 +545,10 @@ AxB-unique {A} {B} AXB AXB′ =
 {- Show that product constructions are associative: for any objects A, B, C,
    A X (B X C) ≅ (A X B) X C -}
 
-≅-assoc : {A B C : obC} →
+x-assoc : {A B C : obC} →
           {BxC : B X C} → {Ax[BxC] : A X (_X_.obj BxC)} →
           {AxB : A X B} → {[AxB]xC : (_X_.obj AxB) X C} → _X_.obj Ax[BxC] ≅ _X_.obj [AxB]xC
-≅-assoc {A}{B}{C} {BxC} {Ax[BxC]} {AxB} {[AxB]xC} =
+x-assoc {A}{B}{C} {BxC} {Ax[BxC]} {AxB} {[AxB]xC} =
   record { f = f
          ; g = g
          ; proof = record { invR = unique→id {_}{_} {g} {f} [AxB]xC→[AxB]xC-unique
@@ -613,14 +622,7 @@ AxB-unique {A} {B} AXB AXB′ =
 
 obC-bproduct : Set
 obC-bproduct = (A B : obC) → A X B
-{-
-record _X-mor_ {A A′ B B′ : obC} (f : morC A B) (f′ : morC A′ B′) {p : obC-bproduct} : Set where
-  field
-    AxA′ : A X A′
-    BxB′ : B X B′
-    m : morC (_X_.obj AxA′) (_X_.obj BxB′)
-    m′ : ⟨ f ∘ (_X_.π₁ AxA′) , f′ ∘ (_X_.π₂ AxA′) ⟩ {BxB′}
--}
+
 -- Theorem 2.2.6
 {- In a category C with binary products, any object A is isomorphic to 1 x A -}
 A≅1xA : {p : obC-bproduct} → {A one : obC} → {t : terminal one} → A ≅ _X_.obj (p one A)
@@ -649,17 +651,19 @@ A≅1xA {p} {A} {one} {t} =
         p2 = proj₂ (proj₂ (_X_.proof 1xA {A} { !A}{id A}))
 
 -- Def 2.2.5
-record ⟨_,_⟩ {A B C : obC} (f : morC C A) (g : morC C B) {AxB : A X B} : Set where
+-- ⟨ f , f′ ⟩
+record <_,_> {A B C : obC} (f : morC C A) (g : morC C B) {AxB : A X B} : Set where
   field
     m : morC C (_X_.obj AxB)
 
+-- f × f′
 mor-x : {A A′ B B′ : obC} → (f : morC A B) → (f′ : morC A′ B′) → {AxA′ : A X A′} → {BxB′ : B X B′} → Set
-mor-x f f′ {AxA′} {BxB′} = ⟨ f ∘ (_X_.π₁ AxA′) , f′ ∘ (_X_.π₂ AxA′) ⟩ {BxB′}
+mor-x f f′ {AxA′} {BxB′} = < f ∘ (_X_.π₁ AxA′) , f′ ∘ (_X_.π₂ AxA′) > {BxB′}
 
 -- get instance
 ⟨_⟩ : {A B C : obC} → {f : morC C A} → {g : morC C B} → {AxB : A X B} →
-        ⟨ f , g ⟩ {AxB} → morC C (_X_.obj AxB)
-⟨_⟩ mp = ⟨_,_⟩.m mp
+       < f , g > {AxB} → morC C (_X_.obj AxB)
+⟨_⟩ mp = <_,_>.m mp
 
 -- Exercise 2.2.7.
 {- Show that each of the following equations hold (f : A → B, f′ : A → B′, g : B → C, g′ : B′ → C′) -}
@@ -675,29 +679,248 @@ mor-x f f′ {AxA′} {BxB′} = ⟨ f ∘ (_X_.π₁ AxA′) , f′ ∘ (_X_.π
         p2 : ⟨idAxidA′⟩ ∘ (id AxA′-obj) ≡ ⟨idAxidA′⟩
         p2 = idR
 
-mproduct-dist : {A A′ B B′ C C′ : obC} → {f : morC A B} → {f′ : morC A′ B′} →
+mproduct-dist : {A B B′ C C′ : obC} → {f : morC A B} → {f′ : morC A B′} →
                 {g : morC B C} → {g′ : morC B′ C′} →
-                {AxA′ : A X A′} → {BxB′ : B X B′} → {CxC′ : C X C′} →
+                {AxA : A X A} → {BxB′ : B X B′} → {CxC′ : C X C′} →
                 {gxg′ : mor-x g g′ {BxB′} {CxC′}} →
-                {fxf′ : mor-x f f′ {AxA′} {BxB′}} →
-                {g∘f×g′∘f′ : mor-x (g ∘ f) (g′ ∘ f′) {AxA′} {CxC′}} →
+                {fxf′ : mor-x f f′ {AxA} {BxB′}} →
+                {g∘f×g′∘f′ : mor-x (g ∘ f) (g′ ∘ f′) {AxA} {CxC′}} →
                 ⟨ gxg′ ⟩ ∘ ⟨ fxf′ ⟩ ≡ ⟨ g∘f×g′∘f′ ⟩
-mproduct-dist {A}{A′}{B}{B′}{C}{C′} {f}{f′} {g}{g′}
-              {AxA′} {BxB′} {CxC′}
-              {gxg′}{fxf′}{g∘f×g′∘f′} = pp
-  where AxA′-obj = _X_.obj AxA′
-        BxB́′-obj = _X_.obj BxB′ --BxB́′
+mproduct-dist {A}{B}{B′}{C}{C′} {f}{f′} {g}{g′}
+              {AxA} {BxB′} {CxC′}
+              {gxg′}{fxf′}{g∘f×g′∘f′} = pf
+  where AxA-obj = _X_.obj AxA
+        BxB́′-obj = _X_.obj BxB′
         CxC′-obj = _X_.obj CxC′
         ⟨gxg′⟩ : morC BxB́′-obj CxC′-obj
         ⟨gxg′⟩ = ⟨ gxg′ ⟩
-        ⟨fxf′⟩ : morC AxA′-obj BxB́′-obj
+        ⟨fxf′⟩ : morC AxA-obj BxB́′-obj
         ⟨fxf′⟩ = ⟨ fxf′ ⟩
-        ⟨g∘f×g′∘f′⟩ : morC AxA′-obj CxC′-obj
+        ⟨gxg′⟩∘⟨fxf′⟩ : morC AxA-obj CxC′-obj
+        ⟨gxg′⟩∘⟨fxf′⟩ = ⟨ gxg′ ⟩ ∘ ⟨ fxf′ ⟩
+        ⟨g∘f×g′∘f′⟩ : morC AxA-obj CxC′-obj
         ⟨g∘f×g′∘f′⟩ = ⟨ g∘f×g′∘f′ ⟩
-        pp : ⟨ gxg′ ⟩ ∘ ⟨ fxf′ ⟩ ≡ ⟨ g∘f×g′∘f′ ⟩
-        pp = {!!}
+        AxA′→CxC′-unique : morC-unique AxA-obj to CxC′-obj
+        AxA′→CxC′-unique = proj₁ (_X_.proof CxC′ {AxA-obj} {h1} {h2})
+          where h1 : morC AxA-obj C
+                h1 = _X_.π₁ CxC′ ∘ ⟨gxg′⟩∘⟨fxf′⟩
+                h2 : morC AxA-obj C′
+                h2 = _X_.π₂ CxC′ ∘ ⟨gxg′⟩∘⟨fxf′⟩
+        pf : ⟨gxg′⟩∘⟨fxf′⟩ ≡ ⟨g∘f×g′∘f′⟩
+        pf = morC-unique→f≡g AxA′→CxC′-unique
+
+mpair-dist : {A B B′ C C′ : obC} → {f : morC A B} → {f′ : morC A B′} →
+             {g : morC B C} → {g′ : morC B′ C′} →
+             {BxB′ : B X B′} → {CxC′ : C X C′} →
+             {gxg′ : mor-x g g′ {BxB′} {CxC′} } →
+             {f,f′ : < f , f′ > {BxB′} } →
+             {g∘f,g′∘f′ : < g ∘ f , g′ ∘ f′ > {CxC′}} →
+             ⟨ gxg′ ⟩ ∘ ⟨ f,f′ ⟩ ≡ ⟨ g∘f,g′∘f′ ⟩
+mpair-dist {A}{B}{B′}{C}{C′} {f}{f′} {g}{g′}
+           {BxB′} {CxC′}
+           {gxg′} {f,f′} {g∘f,g′∘f′} = pf
+  where BxB′-obj = _X_.obj BxB′
+        CxC′-obj = _X_.obj CxC′
+        ⟨f,f′⟩ : morC A BxB′-obj
+        ⟨f,f′⟩ = ⟨ f,f′ ⟩
+        ⟨gxg′⟩ : morC BxB′-obj CxC′-obj
+        ⟨gxg′⟩ = ⟨ gxg′ ⟩
+        ⟨gxg′⟩∘⟨f,f′⟩ : morC A CxC′-obj
+        ⟨gxg′⟩∘⟨f,f′⟩ = ⟨ gxg′ ⟩ ∘ ⟨ f,f′ ⟩
+        ⟨g∘f,g′∘f′⟩ : morC A CxC′-obj
+        ⟨g∘f,g′∘f′⟩ = ⟨ g∘f,g′∘f′ ⟩
+        A→CxC′-unique : morC-unique A to CxC′-obj
+        A→CxC′-unique = proj₁ (_X_.proof CxC′ {A} {h1} {h2})
+          where h1 : morC A C
+                h1 = _X_.π₁ CxC′ ∘ ⟨gxg′⟩∘⟨f,f′⟩
+                h2 : morC A C′
+                h2 = _X_.π₂ CxC′ ∘ ⟨gxg′⟩∘⟨f,f′⟩
+        pf : ⟨gxg′⟩∘⟨f,f′⟩ ≡ ⟨g∘f,g′∘f′⟩
+        pf = morC-unique→f≡g A→CxC′-unique
+
+-- Def 2.2.9.
+record Δ (A : obC) : Set where
+  field
+    bp : A X A
+    m : morC A (_X_.obj bp)
+
+-- Exercise 2.2.10
+{- Show that, if a category C has binary products, ⟨h,k⟩ = hxk ∘ ΔT
+   for any h : T → A and k : T → B -}
+⟨h,k⟩≡⟨hxk⟩∘ΔT : {A B T : obC} → {h : morC T A} → {k : morC T B} →
+                 {AxB : A X B} →
+                 {ΔT : Δ T} →
+                 {h,k : < h , k > {AxB}} →
+                 {hxk : mor-x h k {Δ.bp ΔT} {AxB}} →
+                 ⟨ h,k ⟩ ≡ ⟨ hxk ⟩ ∘ Δ.m ΔT
+⟨h,k⟩≡⟨hxk⟩∘ΔT {A}{B}{T} {h}{k}
+               {AxB} {ΔT} {h,k} {hxk} = pf
+  where AxB-obj = _X_.obj AxB
+        TxT = Δ.bp ΔT
+        TxT-obj = _X_.obj TxT
+        TxT-m = Δ.m ΔT
+        ⟨h,k⟩ : morC T AxB-obj
+        ⟨h,k⟩ = ⟨ h,k ⟩
+        ⟨hxk⟩ : morC TxT-obj AxB-obj
+        ⟨hxk⟩ = ⟨ hxk ⟩
+        ⟨hxk⟩∘ΔT : morC T AxB-obj
+        ⟨hxk⟩∘ΔT = ⟨hxk⟩ ∘ Δ.m ΔT
+        T→AxB-unique : morC-unique T to AxB-obj
+        T→AxB-unique = proj₁ (_X_.proof AxB {T} {h1} {h2})
+          where h1 : morC T A
+                h1 = _X_.π₁ AxB ∘ ⟨h,k⟩
+                h2 : morC T B
+                h2 = _X_.π₂ AxB ∘ ⟨h,k⟩
+        pf : ⟨h,k⟩ ≡ ⟨hxk⟩∘ΔT
+        pf = morC-unique→f≡g T→AxB-unique
+
+-- Def 2.2.11
+-- Binary-coproduct
+record _+_ (A B : obC) : Set where
+  field
+    obj : obC
+    ι₁ : morC A obj
+    ι₂ : morC B obj
+    proof : {C : obC} → {f : morC A C} → {g : morC B C} →
+            Σ[ A+B→C-unique ∈ morC-unique obj to C ]
+            (morC-unique_to_.m A+B→C-unique) ∘ ι₁ ≡ f × (morC-unique_to_.m A+B→C-unique) ∘ ι₂ ≡ g
+
+cproduct-unique-refl : {A B : obC} → (A+B : A + B) → morC-unique (_+_.obj A+B) to (_+_.obj A+B)
+cproduct-unique-refl {A}{B} A+B = proj₁ (_+_.proof A+B {_} {π₁} {π₂})
+  where π₁ = _+_.ι₁ A+B
+        π₂ = _+_.ι₂ A+B
+
+-- Theorem 2.2.12
+{- For any objects A and B, a binary coproduct of A and B is unique up to morphism. -}
+A+B-unique : {A B : obC} → {P P′ : A + B} → _+_.obj P ≅ _+_.obj P′
+A+B-unique {A}{B} {P}{P′} =
+  record { f = f
+         ; g = g
+         ; proof = record { invR = p1
+                          ; invL = p2
+                          }
+         }
+  where P-obj = _+_.obj P
+        P′-obj = _+_.obj P′
+        ι₁-p = _+_.ι₁ P
+        ι₂-p = _+_.ι₂ P
+        ι₁-p′ = _+_.ι₁ P′
+        ι₂-p′ = _+_.ι₂ P′
+        f : morC P-obj P′-obj
+        f = morC-unique_to_.m (proj₁ (_+_.proof P {P′-obj} {ι₁-p′} {ι₂-p′}))
+        g : morC P′-obj P-obj
+        g = morC-unique_to_.m (proj₁ (_+_.proof P′ {P-obj} {ι₁-p} {ι₂-p}))
+        P→P-unique : morC-unique P-obj to P-obj
+        P→P-unique = cproduct-unique-refl P
+        P′→P′-unique : morC-unique P′-obj to P′-obj
+        P′→P′-unique = cproduct-unique-refl P′
+        p1 : (f ∘ g) ≡ id P′-obj
+        p1 = unique→id P′→P′-unique
+        p2 : (g ∘ f) ≡ id P-obj
+        p2 = unique→id P→P-unique
+
+-- Theorem 2.2.13.
+{- In a category C with binary coproducts, any object A is isomorphoc to ⊘ + A -}
+A≅⊘+A : {A : obC} → {⊘ : obC} → {i : initial ⊘} → {⊘+A : ⊘ + A} → A ≅ _+_.obj ⊘+A
+A≅⊘+A {A}{⊘} {init} {⊘+A} =
+  record { f = f
+         ; g = g
+         ; proof = record { invR = p1
+                          ; invL = p2
+                          }
+         }
+  where ⊘+A-obj = _+_.obj ⊘+A
+        f : morC A ⊘+A-obj
+        f = _+_.ι₂ ⊘+A
+        h : morC ⊘ A
+        h = morC-unique_to_.m (initial.proof init {A})
+        ⊘+A→A-unique : morC-unique ⊘+A-obj to A
+        ⊘+A→A-unique = proj₁ (_+_.proof ⊘+A {A} {h} {id A})
+        g : morC ⊘+A-obj A
+        g = morC-unique_to_.m ⊘+A→A-unique
+        ⊘+A→⊘+A-unique : morC-unique ⊘+A-obj to ⊘+A-obj
+        ⊘+A→⊘+A-unique = cproduct-unique-refl ⊘+A
+        p1 : f ∘ g ≡ id ⊘+A-obj
+        p1 = unique→id ⊘+A→⊘+A-unique
+        p2 : g ∘ f ≡ id A
+        p2 = proj₂ (proj₂ (_+_.proof ⊘+A {A} {h} {id A}))
+
+-- Theorem 2.2.13.
+{- For any objects A, B, A + B ≅ B + A -}
+cproduct-sym : {A B : obC} → {A+B : A + B} → {B+A : B + A} →
+               _+_.obj A+B ≅ _+_.obj B+A
+cproduct-sym {A}{B} {A+B}{B+A} =
+  record { f = f
+         ; g = g
+         ; proof = record { invR = p1
+                          ; invL = p2
+                          }
+         }
+  where ι₁-A+B = _+_.ι₁ A+B
+        ι₂-A+B = _+_.ι₂ A+B
+        ι₁-B+A = _+_.ι₁ B+A
+        ι₂-B+A = _+_.ι₂ B+A
+        A+B-obj = _+_.obj A+B
+        B+A-obj = _+_.obj B+A
+        f : morC A+B-obj B+A-obj
+        f = morC-unique_to_.m (proj₁ (_+_.proof A+B {B+A-obj} {ι₂-B+A} {ι₁-B+A}))
+        g : morC B+A-obj A+B-obj
+        g = morC-unique_to_.m (proj₁ (_+_.proof B+A {A+B-obj} {ι₂-A+B} {ι₁-A+B}))
+        A+B→A+B-unique : morC-unique A+B-obj to A+B-obj
+        A+B→A+B-unique = cproduct-unique-refl A+B
+        B+A→B+A-unique : morC-unique B+A-obj to B+A-obj
+        B+A→B+A-unique = cproduct-unique-refl B+A
+        p1 : f ∘ g ≡ id B+A-obj
+        p1 = unique→id B+A→B+A-unique
+        p2 : g ∘ f ≡ id A+B-obj
+        p2 = unique→id A+B→A+B-unique
+
+-- Exercise 2.2.15.
+{- Show that the coproduct constructions are assosiative -}
++-assoc : {A B C : obC} → {B+C : B + C} → {A+[B+C] : A + (_+_.obj B+C)} →
+          {A+B : A + B} → {[A+B]+C : (_+_.obj A+B) + C} →
+          _+_.obj A+[B+C] ≅ _+_.obj [A+B]+C
++-assoc {A}{B}{C} {B+C}{A+[B+C]}{A+B}{[A+B]+C} =
+  record { f = f
+         ; g = g
+         ; proof = record { invR = p1
+                          ; invL = p2
+                          }
+         }
+  where A+B-obj = _+_.obj A+B
+        B+C-obj = _+_.obj B+C
+        A+[B+C]-obj = _+_.obj A+[B+C]
+        [A+B]+C-obj = _+_.obj [A+B]+C
+        f : morC A+[B+C]-obj [A+B]+C-obj
+        f = morC-unique_to_.m (proj₁ (_+_.proof A+[B+C] {[A+B]+C-obj} {h1} {h2}))
+          where h1 : morC A [A+B]+C-obj
+                h1 = _+_.ι₁ [A+B]+C ∘ _+_.ι₁ A+B
+                h2 : morC B+C-obj [A+B]+C-obj
+                h2 = morC-unique_to_.m (proj₁ (_+_.proof B+C {[A+B]+C-obj} {k1} {k2}))
+                     where k1 : morC B [A+B]+C-obj
+                           k1 = _+_.ι₁ [A+B]+C ∘ _+_.ι₂ A+B
+                           k2 : morC C [A+B]+C-obj
+                           k2 = _+_.ι₂ [A+B]+C
+        g : morC [A+B]+C-obj A+[B+C]-obj
+        g = morC-unique_to_.m (proj₁ (_+_.proof [A+B]+C {A+[B+C]-obj} {h1} {h2}))
+          where h1 : morC A+B-obj A+[B+C]-obj
+                h1 = morC-unique_to_.m (proj₁ (_+_.proof A+B {A+[B+C]-obj} {k1} {k2}))
+                     where k1 : morC A A+[B+C]-obj
+                           k1 = _+_.ι₁ A+[B+C]
+                           k2 : morC B A+[B+C]-obj
+                           k2 = _+_.ι₂ A+[B+C] ∘ _+_.ι₁ B+C
+                h2 : morC C A+[B+C]-obj
+                h2 = _+_.ι₂ A+[B+C] ∘ _+_.ι₂ B+C
+        [A+B]+C→[A+B]+C-unique : morC-unique [A+B]+C-obj to [A+B]+C-obj
+        [A+B]+C→[A+B]+C-unique = cproduct-unique-refl [A+B]+C
+        A+[B+C]→A+[B+C]-unique : morC-unique A+[B+C]-obj to A+[B+C]-obj
+        A+[B+C]→A+[B+C]-unique = cproduct-unique-refl A+[B+C]
+        p1 : f ∘ g ≡ id [A+B]+C-obj
+        p1 = unique→id [A+B]+C→[A+B]+C-unique
+        p2 : g ∘ f ≡ id A+[B+C]-obj
+        p2 = unique→id A+[B+C]→A+[B+C]-unique
 
 
 -- π₁π₂
+-- ι₁ι₂
 -- proj₂ projproj₂
-
