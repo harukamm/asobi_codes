@@ -786,9 +786,9 @@ record _+_ (A B : obC) : Set where
             (morC-unique_to_.m A+B→C-unique) ∘ ι₁ ≡ f × (morC-unique_to_.m A+B→C-unique) ∘ ι₂ ≡ g
 
 cproduct-unique-refl : {A B : obC} → (A+B : A + B) → morC-unique (_+_.obj A+B) to (_+_.obj A+B)
-cproduct-unique-refl {A}{B} A+B = proj₁ (_+_.proof A+B {_} {π₁} {π₂})
-  where π₁ = _+_.ι₁ A+B
-        π₂ = _+_.ι₂ A+B
+cproduct-unique-refl {A}{B} A+B = proj₁ (_+_.proof A+B {_} {ι₁} {ι₂})
+  where ι₁ = _+_.ι₁ A+B
+        ι₂ = _+_.ι₂ A+B
 
 -- Theorem 2.2.12
 {- For any objects A and B, a binary coproduct of A and B is unique up to morphism. -}
@@ -920,7 +920,104 @@ cproduct-sym {A}{B} {A+B}{B+A} =
         p2 : g ∘ f ≡ id A+[B+C]-obj
         p2 = unique→id A+[B+C]→A+[B+C]-unique
 
+record pullback {A B C : obC} (f : morC A C) (g : morC B C) : Set where
+  field
+    obj : obC -- A Xc B
+    p₁ : morC obj A
+    p₂ : morC obj B
+    proj-eq : f ∘ p₁ ≡ g ∘ p₂
+    proof : {T : obC} → {h : morC T A} → {k : morC T B} → f ∘ h ≡ g ∘ k →
+            Σ[ m-unique ∈ morC-unique T to obj ]
+            p₁ ∘ morC-unique_to_.m m-unique ≡ h × p₂ ∘ morC-unique_to_.m m-unique ≡ k
 
+pullback-unique-refl : {A B C : obC} → {f : morC A C} → {g : morC B C} →
+                       (p : pullback f g) → morC-unique (pullback.obj p) to (pullback.obj p)
+pullback-unique-refl {A}{B}{C} {f}{g} D = proj₁ (pullback.proof D eq)
+  where eq = pullback.proj-eq D
+
+-- Theorem 2.3.2
+{- A pullback for a given pair of morphisms is determined up to isomorphism. -}
+pullback-unique : {A B C : obC} → {f : morC A C} → {g : morC B C} →
+                  {D : pullback f g} → {E : pullback f g} → pullback.obj D ≅ pullback.obj E
+pullback-unique {A}{B}{C} {f}{g} {D}{E} =
+  record { f = !D→E
+         ; g = !E→D
+         ; proof = record { invR = p1
+                          ; invL = p2
+                          }
+         }
+  where D-obj = pullback.obj D
+        E-obj = pullback.obj E
+        Da : morC D-obj A
+        Da = pullback.p₁ D
+        Db : morC D-obj B
+        Db = pullback.p₂ D
+        Ea : morC E-obj A
+        Ea = pullback.p₁ E
+        Eb : morC E-obj B
+        Eb = pullback.p₂ E
+        D-eq : f ∘ Da ≡ g ∘ Db
+        D-eq = pullback.proj-eq D
+        E-eq : f ∘ Ea ≡ g ∘ Eb
+        E-eq = pullback.proj-eq E
+        !E→D : morC E-obj D-obj
+        !E→D = morC-unique_to_.m (proj₁ (pullback.proof D E-eq))
+        !D→E : morC D-obj E-obj
+        !D→E = morC-unique_to_.m (proj₁ (pullback.proof E D-eq))
+        !D = pullback-unique-refl D
+        !E = pullback-unique-refl E
+        p1 : !D→E ∘ !E→D ≡ id E-obj
+        p1 = unique→id !E
+        p2 : !E→D ∘ !D→E ≡ id D-obj
+        p2 = unique→id !D
+
+-- Theorem 2.3.3.
+pullback-monic : {A B C : obC} → {f : morC A C} → {g : morC B C} →
+                 {D : pullback f g} → monic (pullback.p₂ D)
+pullback-monic {A}{B}{C} {f}{g} {P} {T}{t₁}{t₂} p₂∘t₁≡p₂∘t₂ = pf
+  where P-obj = pullback.obj P
+        p₁ = pullback.p₁ P
+        p₂ = pullback.p₂ P
+        h : morC T A
+        h = p₁ ∘ t₂
+        k : morC T B
+        k = p₂ ∘ t₁
+        P-eq : f ∘ p₁ ≡ g ∘ p₂
+        P-eq = pullback.proj-eq P
+        eq : f ∘ h ≡ g ∘ k
+        eq = begin
+              f ∘ (p₁ ∘ t₂)
+            ≡⟨ ∘-assoc ⟩
+              (f ∘ p₁) ∘ t₂
+            ≡⟨ cong (λ x → x ∘ t₂) P-eq ⟩
+              (g ∘ p₂) ∘ t₂
+            ≡⟨ sym ∘-assoc ⟩
+              g ∘ (p₂ ∘ t₂)
+            ≡⟨ cong (λ x → g ∘ x) (sym p₂∘t₁≡p₂∘t₂) ⟩
+              g ∘ (p₂ ∘ t₁)
+            ∎
+        !T : morC-unique T to P-obj
+        !T = proj₁ (pullback.proof P eq)
+        pf : t₁ ≡ t₂
+        pf = morC-unique→f≡g !T
+
+-- Theorem 2.3.4.
+outer-pullback : {A B A′ B′ C : obC} → {f : morC A A′} → {g : morC B A′} →
+                 {f′ : morC A′ C} → {g′ : morC B′ C} →
+                 {D : pullback f g} → {E : pullback f′ g′} → pullback (f′ ∘ f) g′
+outer-pullback {A}{B}{A′}{B′}{C} {f}{g}{f′}{g′} {D}{E} = ?
+  where D-obj = pullback.obj D
+        E-obj = pullback.obj E
+        Da : morC D-obj A
+        Da = pullback.p₁ D
+        Db : morC D-obj B
+        Db = pullback.p₂ D
+        Ea′ : morC E-obj A′
+        Ea′ = pullback.p₁ E
+        Eb′ : morC E-obj B′
+        Eb′ = pullback.p₂ E
 -- π₁π₂
 -- ι₁ι₂
--- proj₂ projproj₂
+-- p₁p₂
+-- proj₁ proj₂
+-- λ ₁₂
