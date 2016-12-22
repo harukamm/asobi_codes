@@ -4,8 +4,8 @@ import Parser hiding (expr, expr')
 data Expr = App Expr Expr | I | K | S deriving Show
 
 {-
-  isk := "I" | "S" | "K"
-  expr := isk | expr isk | expr'
+  isk := "i" | "s" | "k"
+  expr := isk | "`" expr expr | expr'
   expr' := "(" expr ")"
 -}
 
@@ -29,19 +29,21 @@ eval (App x y) = apply (eval x) (eval y)
 eval x = x
 
 isk :: Parser Expr
-isk = (symbol "I" >= const (return I))
+isk = (symbol "i" >= const (return I))
       +++
-      (symbol "S" >= const (return S))
+      (symbol "s" >= const (return S))
       +++
-      (symbol "K" >= const (return K))
+      (symbol "k" >= const (return K))
 
 expr :: Parser Expr
 expr = expr'
        +++
-       isk >= (\t ->
-       (many (isk +++ expr') >= \es ->
-        return (foldl App t es))
-       +++ (return t))
+       isk
+       +++
+       (symbol "`" >= const
+        expr >= \e1 ->
+        expr >= \e2 ->
+        return (App e1 e2))
 
 expr' :: Parser Expr
 expr' = symbol "(" >= const
@@ -50,9 +52,7 @@ expr' = symbol "(" >= const
         (return e)
 
 e1 :: Expr
-e1 = fst (head (parse expr "(S K) K K S (K I)"))
+e1 = fst (head (parse expr "`k``s``si`k```s``sss```s``s`ks`ssi``ss`ki``s`ksk`k``s``si`k```ss``s``ss`ki``ss```ss`ss``ss`ki``s`ksk`k``s``si`k```s``si``ss``ss`ki```ss`s``sss``ss`ki``s`ksk`k``s``si`k```s``si``ss``ss`ki```ss`s``sss``ss`ki``s`ksk`k``s``si`k```ss``s``sss``ss```ss`ss``ss`ki``s`ksk`k``s``si`k```ss``ss``s``sss``s``sss``ss`ki``s`ksk`k``s``si`k```s``ss```ssi``ss`ki``ss`ki``s`ksk`k``s``si`k```s``si``ss``s``sss``ss`ki``ss```ss``ssi``ss`ki``s`ksk`k``s``si`k```ss``s``sss``ss```ss`ss``ss`ki``s`ksk`k``s``si`k```ss``ss``ss``ss``s``sss``ss```ss`ss``ss`ki``s`ksk`k``s``si`k```s``si``ss``ss`ki```ss`s``sss``ss`ki``s`ksk`k``s``si`k```s``ss`ki``ss```ss`ss``ss`ki``s`ksk`k``s``si`k```ss```ss`ss``ss`ki``s`ksk`k`k```sii```sii``s``s`kski"))
 
 main = print e1 >>= const
-       -- => App (App (App (App (App S K) K) K) S) (App K I)
        (print (eval e1))
-       -- => S
