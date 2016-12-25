@@ -68,15 +68,21 @@ let slist_to_string slst =
       List.fold_right (fun s acc -> acc ^ " " ^ s) r h
   with _ -> ""
 
-let id x = x
-
 (* print : expr_t -> (string -> string) -> string *)
 let rec print e cont = match e with
-    Nil -> cont "Nil"
+    Nil -> cont "()"
   | Sym (s) -> cont s
+  | Cons (Cons (e1, e2), Nil) ->
+     print (Cons (e1, e2))
+	   (fun sl -> cont ("(" ^ sl ^ ")"))
+  | Cons (Cons (e1, e2), r) ->
+     print (Cons (e1, e2))
+	   (fun sl -> print r (fun sr -> cont ("(" ^ sl ^ ") " ^ sr)))
+  | Cons (l, Nil) ->
+     print l (fun sl -> cont sl)
   | Cons (l, r) ->
      print l (fun sl ->
-	      print r (fun sr -> cont ("(" ^ sl ^ " " ^ sr ^ ")")))
+	      print r (fun sr -> cont (sl ^ " " ^ sr)))
 
 let sat b = if b then (Sym "T") else Nil
 (* is_allsym : returns true if expr is composed only with sym *)
@@ -164,3 +170,84 @@ let rec loop exprs env cont = match exprs with
 
 (* go : expr_t list -> unit *)
 let go program = loop program Env.empty print_endline
+
+(* split : string -> (string list) list *)
+let split str =
+  let len = String.length str in
+  let maybe_cons s lst = if s = "" then lst else s :: lst in
+  (* inner : int -> string -> (string list * int) *)
+  let rec inner i tmp =
+    if i < len then
+      let ni = i + 1 in
+      let s = String.sub str i 1 in
+      match s with
+	"\n" -> (maybe_cons tmp [], ni)
+      | " " -> (* ignore space *)
+	 let (slst, ptr) = inner ni "" in
+	 (maybe_cons tmp slst, ptr)
+      | "(" | ")" ->
+	 let (slst, ptr) = inner ni "" in
+	 (maybe_cons tmp (s :: slst), ptr)
+      | _ -> inner ni (tmp ^ s)
+    else (maybe_cons tmp [], i)
+  in
+  (* h : int -> (string list) list *)
+  let rec h i =
+    if i < len then
+      let (line, ptr) = inner i "" in
+      line :: (h ptr)
+    else []
+  in h 0
+
+(* parse *)
+let ptr = ref 0
+let tarr = ref (Array.make 0 "")
+
+(* symbol := [a-z]+
+ * expr := symbol
+         | "(" expr* ")" *)
+
+let ahead () = ptr := !ptr + 1
+let error msg = failwith msg
+let accept p = if p (!tarr.(!ptr)) then (ahead(); true) else false
+let expect p s = if accept (p) then () else error s
+
+(* symbol : unit -> expr_t *)
+let symbol () =
+  let x = !tarr.(!ptr) in
+  let _ = expect (fun s -> s <> "(" && s <> ")") (x ^ ": not a symbol") in
+  Sym (x)
+
+(* many : (unit -> expr_t) -> expr_t list *)
+let rec many p =
+  try let e = p () in
+      e :: many p
+  with _ -> []
+
+(* expr -> unit -> expr_t *)
+let rec expr () =
+  try
+    let s = symbol () in s
+  with _ ->
+    if (accept (fun s -> s = "(")) then
+      let es = many expr in
+      let _ = expect (fun s -> s = ")") (!tarr.(!ptr) ^ ": not a )") in
+      List.fold_right (fun e t -> Cons (e, t)) es Nil
+    else error (!tarr.(!ptr) ^ ": invalid sytax")
+
+(* start : string -> unit *)
+let start input =
+  (* tokens : (string list) list *)
+  let tokens = split input in
+  (* h : (string list) list -> expr_t list *)
+  let rec h t = match t with
+      [] -> []
+    | token :: ts ->
+       let _ = tarr := (Array.of_list token) in
+       let _ = ptr := 0 in
+       let exp = expr () in
+       exp :: h ts
+  in go (h (tokens))
+
+(* test *)
+let e1 = start "(define (f x) (atom x))\n(f ())"
