@@ -151,35 +151,44 @@ let rec loop exprs env cont = match exprs with
 let go program =
   loop program Env.empty (List.map to_string)
 
-(* split : string -> (string list) list *)
-let split str =
+(* tokenize : string -> (string list) list *)
+let tokenize str =
   let len = String.length str in
-  let maybe_cons s lst = if s = "" then lst else s :: lst in
-  (* inner : int -> string -> (string list * int) *)
-  let rec inner i tmp =
+  let rec skip p i bf =
     if i < len then
-      let ni = i + 1 in
       let s = String.sub str i 1 in
+      if p s then skip p (i + 1) (bf ^ s)
+      else (bf, i)
+    else (bf, i)
+  in
+  (* inner : int -> (string list * int) *)
+  let rec inner i =
+    if i < len then
+      let s = String.sub str i 1 in
+      let ni = i + 1 in
       match s with
-	"\n" -> (maybe_cons tmp [], ni)
-      | " " -> (* ignore space *)
-	 let (slst, ptr) = inner ni "" in
-	 (maybe_cons tmp slst, ptr)
+      | " " | "\t" -> inner ni
+      | "\n" | "\r" ->
+	 let (_, i') = skip (fun s -> List.mem s ["\n"; "\r"]) ni "" in ([], i')
       | "(" | ")" ->
-	 let (slst, ptr) = inner ni "" in
-	 (maybe_cons tmp (s :: slst), ptr)
-      | _ -> inner ni (tmp ^ s)
-    else (maybe_cons tmp [], i)
+	 let (slst, ptr) = inner ni in (s :: slst, ptr)
+      | _ ->
+	 let special = [" "; "\t"; "\n"; "\r"; "("; ")"] in
+	 let (sym, i') = skip (fun s -> not (List.mem s special)) i "" in
+	 let (slst, ptr) = inner i' in
+	 (sym :: slst, ptr)
+    else ([], i)
   in
   (* h : int -> (string list) list *)
   let rec h i =
     if i < len then
-      let (line, ptr) = inner i "" in
+      let (line, ptr) = inner i in
       line :: (h ptr)
     else []
   in h 0
 
 (* parse *)
+let line = ref 0
 let ptr = ref 0
 let tarr = ref (Array.make 0 "")
 
@@ -189,8 +198,15 @@ let tarr = ref (Array.make 0 "")
 
 let ahead () = ptr := !ptr + 1
 let error msg = failwith msg
-let accept p = if p (!tarr.(!ptr)) then (ahead(); true) else false
-let expect p s = if accept (p) then () else error s
+let accept p = if !ptr < Array.length !tarr then
+		 if p (!tarr.(!ptr)) then (ahead(); true) else false
+	       else false
+let expect p s = if accept p then () else error s
+let add_info msg p l =
+  let s = if p < Array.length !tarr then "\"" ^ !tarr.(p) ^ "\""
+	  else (string_of_int p) ^ "-th token" in
+  msg ^ " at " ^ s ^
+    ", line " ^ (string_of_int l)
 
 (* symbol : unit -> expr_t *)
 let symbol () =
@@ -207,27 +223,32 @@ let rec many p =
 (* expr -> unit -> expr_t *)
 let rec expr () =
   try
-    let s = symbol () in s
+    symbol ()
   with _ ->
+    let p = !ptr in
     if (accept (fun s -> s = "(")) then
       let es = many expr in
-      let _ = expect (fun s -> s = ")") (!tarr.(!ptr) ^ ": not a )") in
+      expect (fun s -> s = ")") (add_info "expected ')'" !ptr !line);
       List.fold_right (fun e t -> Cons (e, t)) es Nil
-    else error (!tarr.(!ptr) ^ ": invalid sytax")
+    else error (add_info "invalid sytax" p !line)
 
-(* start : string -> unit *)
-let start input =
+(* parse : string -> expr_t *)
+let parse input =
   (* tokens : (string list) list *)
-  let tokens = split input in
-  (* h : (string list) list -> expr_t list *)
-  let rec h t = match t with
-      [] -> []
-    | token :: ts ->
-       let _ = tarr := (Array.of_list token) in
-       let _ = ptr := 0 in
-       let exp = expr () in
-       exp :: h ts
-  in go (h (tokens))
+  let tokens = tokenize input in
+  List.map (fun token ->
+	    line := !line + 1;
+	    tarr := Array.of_list token;
+	    ptr := 0;
+	    expr ()) tokens
+
+let start input =
+  let _ = line := 1 in go (parse input)
 
 (* test *)
-let e1 = start "(define (f x) (atom x))\n(f ())"
+let e1 = parse "(define (f x) (atom x))\n(f ())"
+let e2 = parse "(define (my-cons a d) (lambda (f) (f a d)))\n
+		(define (my-car ad) (ad (lambda (a d) a)))\n
+		(define (my-cdr ad) (ad (lambda (a d) d)))\n
+		(define (my-cons a d) (lambda (f) (f a d)))"
+
