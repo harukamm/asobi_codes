@@ -54,35 +54,17 @@ end
 type expr_t = Nil
 	    | Sym of string
 	    | Cons of expr_t * expr_t
-(*
-type value_t = Lambda of string list * expr_t
-	     | Var of string
-	     | Quote of expr_t
- *)
 
-(* slist_to_string ["a"; "b"; "c"] => "a b c" *)
-(* slist_to_string : string list -> string *)
-let slist_to_string slst =
-  try let h = List.hd slst in
-      let r = List.tl slst in
-      List.fold_right (fun s acc -> acc ^ " " ^ s) r h
-  with _ -> ""
-
-(* print : expr_t -> (string -> string) -> string *)
-let rec print e cont = match e with
-    Nil -> cont "()"
-  | Sym (s) -> cont s
-  | Cons (Cons (e1, e2), Nil) ->
-     print (Cons (e1, e2))
-	   (fun sl -> cont ("(" ^ sl ^ ")"))
-  | Cons (Cons (e1, e2), r) ->
-     print (Cons (e1, e2))
-	   (fun sl -> print r (fun sr -> cont ("(" ^ sl ^ ") " ^ sr)))
-  | Cons (l, Nil) ->
-     print l (fun sl -> cont sl)
-  | Cons (l, r) ->
-     print l (fun sl ->
-	      print r (fun sr -> cont (sl ^ " " ^ sr)))
+(* to_string : expr_t -> string *)
+let rec to_string exp =
+  let rec h e = match e with
+    Nil -> "()"
+  | Sym (s) -> s
+  | Cons ((Cons _) as x, Nil) -> "(" ^ (h x) ^ ")"
+  | Cons ((Cons _) as x, r) -> "(" ^ (h x) ^ ") " ^ (h r)
+  | Cons (l, Nil) -> h l
+  | Cons (l, r) -> (h l) ^ " " ^ (h r)
+  in h (Cons (exp, Nil))
 
 let sat b = if b then (Sym "T") else Nil
 (* is_allsym : returns true if expr is composed only with sym *)
