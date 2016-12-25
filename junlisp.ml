@@ -131,35 +131,32 @@ let rec eval exp env cont = match exp with
   | Cons (Sym "if", Cons (p, Cons (x, Cons (y, Nil)))) ->
      eval p env (fun p' ->
 		 if p' = Sym ("T") then cont x else cont y)
-  | Cons (Sym "quote", r) -> cont r
+  | Cons (Sym "quote", Cons (r, Nil)) -> cont r
   | Cons (Sym "lambda", Cons (args, Cons (e, Nil))) when is_allsym args -> cont exp
-  | Cons (Sym "define", Cons (Sym _, Cons (e, Nil))) -> cont exp
-  | Cons (Sym "define", Cons (Cons (Sym _, args), Cons (e, Nil))) when is_allsym args -> cont exp
+  | Cons (Sym "define", Cons (args, Cons (e, Nil))) when is_allsym args -> cont exp
   | Cons (Sym (s), r) when List.mem s rwords -> raise (Invalid_use s)
-  | Cons (l, r) ->
+  | Cons (l, Cons (r, Nil)) ->
      eval l env (fun e1 ->
 		 begin
 		   match e1 with
 		   | Cons (Sym "lambda", Cons (args, Cons (e, Nil))) ->
-		      let argslst = flatten_sym args in (* should not fail *)
+		      let arglst = flatten_sym args in (* should not fail *)
 		      eval r env
 			   (fun e2 ->
 			    let elst = flatten e2 in
-			    (* throws Invalid_argument *)
 			    let env2 = List.fold_right2
-					 (fun a e env' -> Env.add env' a e) argslst elst env in
+					 (fun k e env' -> Env.add env' k e) arglst elst env in
 			    eval e env2 cont)
 		   | _ -> raise (Invalid_use "application")
 		 end)
 
-(* loop : expr_t list -> (string, expr_t) Env.t -> (string -> 'a) -> 'a *)
+(* loop : expr_t list -> (string, expr_t) Env.t -> (expr_t list -> 'a) -> 'a *)
 let rec loop exprs env cont = match exprs with
-    [] -> cont ""
+    [] -> cont []
   | x :: xs ->
-     eval x env (fun ve ->
-		 let sline = print ve id in
-		 let cont' = (fun s -> cont (sline ^ "; " ^ s)) in
-		 match ve with
+     eval x env (fun v ->
+		 let cont' = (fun es -> cont (v :: es)) in
+		 match v with
 		 | Cons (Sym "define", Cons (Sym f, Cons (e, Nil))) ->
 		    let env2 = Env.add env f (Cons (e, Nil)) in
 		    loop xs env2 cont'
@@ -168,8 +165,9 @@ let rec loop exprs env cont = match exprs with
 		    loop xs env2 cont'
 		 | _ -> loop xs env cont')
 
-(* go : expr_t list -> unit *)
-let go program = loop program Env.empty print_endline
+(* go : expr_t list -> *)
+let go program =
+  loop program Env.empty (List.map to_string)
 
 (* split : string -> (string list) list *)
 let split str =
