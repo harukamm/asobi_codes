@@ -68,7 +68,7 @@ let rec to_string exp =
   | Cons (l, r) -> (h l) ^ " " ^ (h r)
   in h (Cons (exp, Nil))
 
-let sat b = if b then (Sym "T") else Nil
+let sat b = if b then (Sym "t") else Nil
 (* is_allsym : returns true if expr is composed only with sym *)
 (* this function is used when checking type of agrs for define/lambda *)
 let rec is_allsym e = match e with
@@ -100,28 +100,21 @@ exception Invalid_use of string
 (* eval : expr_t -> (string, expr_t) Env.t -> (expr_t -> 'a) -> 'a *)
 let rec eval exp env cont = match exp with
     Nil -> cont Nil
-  | Sym ("T") -> cont (Sym ("T"))
+  | Sym ("t") -> cont (Sym ("t"))
   | Sym (s) ->
      begin
        try cont (Env.get env s)
-       with Not_found -> raise (Invalid_use "variable")
+       with Not_found -> raise (Invalid_use (s ^ " is not defined"))
      end
   | Int (i) -> cont (Int i)
   | Cons (Sym "atom", Cons (r, Nil)) ->
      eval r env (fun e -> cont (sat (e = Nil)))
   | Cons (Sym "eq", Cons (e1, Cons (e2, Nil))) ->
-     eval e1 env (fun e1' ->
-		  eval e2 env (fun e2' -> cont (sat (e1' = e2'))))
-  | Cons (Sym "car", Cons (e1, Cons (e2, Nil))) -> eval e1 env cont
-  | Cons (Sym "cdr", Cons (e1, Cons (e2, Nil))) -> eval e2 env cont
-  | Cons (e1, Cons (Sym ".", Cons (e2, Nil))) ->
-     eval e1 env (fun e1' ->
-		  eval e2 env (fun e2' -> cont (Cons (e1', e2'))))
-  | Cons (Sym "-", Cons (e, Nil)) ->
-     eval e env (fun e' ->
-		 match e' with
-		   Int (i) -> cont (Int (- i))
-		 | _ -> failwith ((to_string e') ^ " cant be minus"))
+     eval e1 env (fun e1' -> eval e2 env (fun e2' -> cont (sat (e1' = e2'))))
+  | Cons (Sym "car", Cons (e1, e2)) -> eval e1 env cont
+  | Cons (Sym "cdr", Cons (e1, e2)) -> eval e2 env cont
+  | Cons (Sym "cons", Cons (e1, e2)) ->
+     eval e1 env (fun e1' -> eval e2 env (fun e2' -> cont (Cons (e1', e2'))))
   | Cons (Sym op, Cons (e1, Cons (e2, Nil))) when List.mem op opsym ->
      let f = List.assoc op op_table in
      eval e1 env (fun e1' ->
@@ -129,15 +122,21 @@ let rec eval exp env cont = match exp with
 			       let msg = " is not an integer" in
 			       match (e1', e2') with
 				 (Int (i1), Int (i2)) -> cont (Int (f i1 i2))
-			       | (Int _, _) -> failwith ((to_string e2') ^ msg)
-			       | _ -> failwith ((to_string e1') ^ msg)))
+			       | (Int _, _) -> failwith ((to_string e2) ^ msg)
+			       | _ -> failwith ((to_string e1) ^ msg)))
+  | Cons (Sym "-", Cons (e, Nil)) ->
+     eval e env (fun e' ->
+		 match e' with
+		   Int (i) -> cont (Int (- i))
+		 | _ -> failwith ((to_string e') ^ " cant be minus"))
   | Cons (Sym "if", Cons (p, Cons (x, Cons (y, Nil)))) ->
      eval p env (fun p' ->
-		 if p' = Sym ("T") then cont x else cont y)
+		 if p' = Sym ("t") then eval x env cont else eval y env cont)
   | Cons (Sym "quote", Cons (r, Nil)) -> cont r
   | Cons (Sym "lambda", Cons (args, Cons (e, Nil))) when is_allsym args -> cont exp
   | Cons (Sym "define", Cons (args, Cons (e, Nil))) when is_allsym args -> cont exp
-  | Cons (Sym (s), r) when List.mem s (opsym @ rwords) -> raise (Invalid_use s)
+  | Cons (Sym s, e) when List.mem s (opsym @ rwords) -> raise (Invalid_use s)
+  | Cons (l, Nil) -> eval l env (fun e' -> cont (Cons (e', Nil)))
   | Cons (l, r) ->
      eval l env (fun e1 ->
 		   match e1 with
@@ -156,16 +155,19 @@ let rec eval exp env cont = match exp with
 let rec loop exprs env cont = match exprs with
     [] -> cont []
   | x :: xs ->
-     eval x env (fun v ->
-		 let cont' = (fun es -> cont (v :: es)) in
-		 match v with
-		 | Cons (Sym "define", Cons (Sym f, Cons (e, Nil))) ->
-		    let env2 = Env.add env f (Cons (e, Nil)) in
-		    loop xs env2 cont'
-		 | Cons (Sym "define", Cons (Cons (Sym f, args), Cons (e, Nil))) ->
-		    let env2 = Env.add env f (Cons (Sym "lambda", Cons (args, Cons (e, Nil)))) in
-		    loop xs env2 cont'
-		 | _ -> loop xs env cont')
+     try
+       eval x env (fun v ->
+		   let cont' = (fun es -> cont (v :: es)) in
+		   match v with
+		   | Cons (Sym "define", Cons (Sym f, Cons (e, Nil))) ->
+		      let env2 = Env.add env f (Cons (e, Nil)) in
+		      loop xs env2 cont'
+		   | Cons (Sym "define", Cons (Cons (Sym f, args), Cons (e, Nil))) ->
+		      let env2 = Env.add env f (Cons (Sym "lambda", Cons (args, Cons (e, Nil)))) in
+		      loop xs env2 cont'
+		   | _ -> loop xs env cont')
+     with Invalid_use msg ->
+       raise (Invalid_use ("error: " ^ msg ^ "\ncannot eval: " ^ (to_string x)))
 
 (* go : expr_t list -> *)
 let go program =
