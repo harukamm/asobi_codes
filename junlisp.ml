@@ -173,38 +173,65 @@ let rec loop exprs env cont = match exprs with
 let go program =
   loop program Env.empty (List.map to_string)
 
-(* tokenize : string -> (string list) list *)
+let ascii code = String.make 1 (Char.chr code)
+let asciis st en =
+  let rec h i = if en < i then [] else (ascii i) :: h (i + 1) in h st
+let num = asciis 48 57
+let alpha = asciis 97 122
+let ident = "-" :: (num @ alpha)
+
+(* token *)
+type token = I of int
+	   | S of string
+	   | L | R
+let string_of_token t = match t with
+    I (i) -> string_of_int i
+  | S (s) -> s
+  | L -> "("
+  | R -> ")"
+
+(* tokenize : string -> (token list) list *)
 let tokenize str =
   let len = String.length str in
-  let rec skip p i bf =
+  let rec skip lst i bf =
     if i < len then
       let s = String.sub str i 1 in
-      if p s then skip p (i + 1) (bf ^ s)
+      if (List.mem s lst) then skip lst (i + 1) (bf ^ s)
       else (bf, i)
     else (bf, i)
   in
-  (* inner : int -> (string list * int) *)
+  (* inner : int -> (token list * int) *)
   let rec inner i =
     if i < len then
-      let s = String.sub str i 1 in
       let ni = i + 1 in
+      let ns = if ni < len then String.sub str ni 1 else "" in
+      let s = String.sub str i 1 in
+      let recadd i' t =
+	let (slst, ptr) = inner i' in (t :: slst, ptr) in
       match s with
       | " " | "\t" -> inner ni
-      | "\n" | "\r" ->
-	 let (_, i') = skip (fun s -> List.mem s ["\n"; "\r"]) ni "" in ([], i')
-      | "(" | ")" ->
-	 let (slst, ptr) = inner ni in (s :: slst, ptr)
-      | _ ->
-	 let special = [" "; "\t"; "\n"; "\r"; "("; ")"] in
-	 let (sym, i') = skip (fun s -> not (List.mem s special)) i "" in
-	 let (slst, ptr) = inner i' in
-	 (sym :: slst, ptr)
+      | "(" -> recadd ni L
+      | ")" -> recadd ni R
+      | "\n" | "\r" | ";" -> ([], ni)
+      | "-" when List.mem ns num ->
+	 let (sint, i') = skip num ni "" in
+	 recadd i' (I (-(int_of_string sint)))
+      | _ when List.mem s opsym ->
+	 recadd ni (S (s))
+      | _ when List.mem s num ->
+	 let (sint, i') = skip num i "" in
+	 recadd i' (I (int_of_string sint))
+      | _ when List.mem s alpha ->
+	 let (sym, i') = skip ident i "" in
+	 recadd i' (S (sym))
+      | _ -> failwith ("invalid char: " ^ s ^ " at " ^ (string_of_int i))
     else ([], i)
   in
-  (* h : int -> (string list) list *)
+  (* h : int -> (token list) list *)
   let rec h i =
-    if i < len then
-      let (line, ptr) = inner i in
+    let (_, i') = skip [" "; "\t"; "\n"; "\r"; ";"] i "" in
+    if i' < len then
+      let (line, ptr) = inner i' in
       line :: (h ptr)
     else []
   in h 0
@@ -212,62 +239,68 @@ let tokenize str =
 (* parse *)
 let line = ref 0
 let ptr = ref 0
-let tarr = ref (Array.make 0 "")
+let tarr = ref (Array.make 0 L)
 
-(* symbol := [a-z]+
- * expr := symbol
+(* value := [a-z]+
+          | [0-9]+
+ * expr := value
          | "(" expr* ")" *)
-
 let ahead () = ptr := !ptr + 1
 let error msg = failwith msg
 let accept p = if !ptr < Array.length !tarr then
 		 if p (!tarr.(!ptr)) then (ahead(); true) else false
 	       else false
-let expect p s = if accept p then () else error s
+let expect p s = try let x = !tarr.(!ptr) in if accept p then x else error s
+		 with _ -> error s
 let add_info msg p l =
-  let s = if p < Array.length !tarr then "\"" ^ !tarr.(p) ^ "\""
+  let s = if p < Array.length !tarr
+	  then "\"" ^ (string_of_token !tarr.(p)) ^ "\""
 	  else (string_of_int p) ^ "-th token" in
   msg ^ " at " ^ s ^
     ", line " ^ (string_of_int l)
 
-(* value : unit -> expr_t *)
-let value () =
-  let x = !tarr.(!ptr) in
-  let _ = expect (fun s -> s <> "(" && s <> ")")
-		 (x ^ ": neither symbol nor int") in
-  try Int (int_of_string x)
-  with Failure "int_of_string" -> Sym (x)
-
-(* many : (unit -> expr_t) -> expr_t list *)
+(* many : (unit -> 'a) -> 'a list *)
 let rec many p =
   try let e = p () in
       e :: many p
   with _ -> []
 
+(* value : unit -> expr_t *)
+let value () =
+  let x = expect (fun t -> t <> L && t <> R)
+		 (add_info "neither a symbol nor int" !ptr !line) in
+  match x with
+  | S (s) -> if s = "nil" then Nil else Sym (s)
+  | I (i) -> Int (i)
+  | _ -> error ""
+
 (* expr -> unit -> expr_t *)
 let rec expr () =
-  try
-    value ()
+  try value ()
   with _ ->
     let p = !ptr in
-    if (accept (fun s -> s = "(")) then
+    if (accept (fun s -> s = L)) then
       let es = many expr in
-      expect (fun s -> s = ")") (add_info "expected ')'" !ptr !line);
+      expect (fun s -> s = R) (add_info "expected ')'" !ptr !line);
       List.fold_right (fun e t -> Cons (e, t)) es Nil
     else error (add_info "invalid sytax" p !line)
 
 (* parse : string -> expr_t *)
 let parse input =
+  line := 0;
   (* tokens : (string list) list *)
   let tokens = tokenize input in
   List.map (fun token ->
 	    line := !line + 1;
 	    tarr := Array.of_list token;
 	    ptr := 0;
-	    expr ()) tokens
+	    let e = expr () in
+	    if !ptr < Array.length !tarr then
+	      error ("cannot parse from " ^ (string_of_token (!tarr.(!ptr))))
+	    else e
+	   ) tokens
 
-let start input =
-  let _ = line := 1 in go (parse input)
+let start input = go (parse input)
 
 (* test *)
 let e1 = parse "(define (f x) (atom x))\n(f ())"
