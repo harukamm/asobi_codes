@@ -1,3 +1,4 @@
+open Printf
 (*
  * https://ja.wikipedia.org/wiki/純LISP
  * nil, t
@@ -141,7 +142,9 @@ let rec eval exp env cont = match exp with
      eval l env (fun e1 ->
 		   match e1 with
 		   | Cons (Sym "lambda", Cons (args, Cons (e, Nil))) ->
-		      let arglst = flatten_sym args in (* should not fail *)
+		      let arglst =
+			try flatten_sym args
+			with _ -> raise (Invalid_use "not-symbol arg") in
 		      let elst = flatten r in (* call by name *)
 		      let env2 =
 			try
@@ -149,8 +152,9 @@ let rec eval exp env cont = match exp with
 			    (fun k e env' -> Env.add env' k e) arglst elst env
 			with _ -> raise (Invalid_use "insufficient args") in
 			eval e env2 cont
-		   | _ -> raise (Invalid_use "application"))
+		   | _ -> let _ = print_endline (to_string l) in raise (Invalid_use "application"))
 
+let genv = ref Env.empty
 (* loop : expr_t list -> (string, expr_t) Env.t -> (expr_t list -> 'a) -> 'a *)
 let rec loop exprs env cont = match exprs with
     [] -> cont []
@@ -161,17 +165,19 @@ let rec loop exprs env cont = match exprs with
 		   match v with
 		   | Cons (Sym "define", Cons (Sym f, Cons (e, Nil))) ->
 		      let env2 = Env.add env f (Cons (e, Nil)) in
+		      let _ = genv := env2 in
 		      loop xs env2 cont'
 		   | Cons (Sym "define", Cons (Cons (Sym f, args), Cons (e, Nil))) ->
-		      let env2 = Env.add env f (Cons (Sym "lambda", Cons (args, Cons (e, Nil)))) in
+		      let lam = Cons (Sym "lambda", Cons (args, Cons (e, Nil))) in
+		      let env2 = Env.add env f lam in
+		      let _ = genv := env2 in
 		      loop xs env2 cont'
 		   | _ -> loop xs env cont')
      with Invalid_use msg ->
        raise (Invalid_use ("error: " ^ msg ^ "\ncannot eval: " ^ (to_string x)))
 
 (* go : expr_t list -> *)
-let go program =
-  loop program Env.empty (List.map to_string)
+let go program = loop program !genv (List.map to_string)
 
 let ascii code = String.make 1 (Char.chr code)
 let asciis st en =
@@ -181,6 +187,8 @@ let alpha = asciis 97 122
 let ident = "-" :: (num @ alpha)
 
 (* token *)
+exception Parser_error of string
+let error msg = raise (Parser_error msg)
 type token = I of int
 	   | S of string
 	   | L | R
@@ -193,13 +201,14 @@ let string_of_token t = match t with
 (* tokenize : string -> (token list) list *)
 let tokenize str =
   let len = String.length str in
-  let rec skip lst i bf =
+  let rec until p i bf =
     if i < len then
       let s = String.sub str i 1 in
-      if (List.mem s lst) then skip lst (i + 1) (bf ^ s)
+      if p s then until p (i + 1) (bf ^ s)
       else (bf, i)
     else (bf, i)
   in
+  let skip lst i = until (fun s -> List.mem s lst) i "" in
   (* inner : int -> (token list * int) *)
   let rec inner i =
     if i < len then
@@ -212,27 +221,28 @@ let tokenize str =
       | " " | "\t" -> inner ni
       | "(" -> recadd ni L
       | ")" -> recadd ni R
-      | "\n" | "\r" | ";" -> ([], ni)
+      | "\n" | "\r" -> ([], ni)
+      | ";" ->
+	 let (_, i') = until (fun s -> s <> "\n") ni "" in ([], i' + 1)
       | "-" when List.mem ns num ->
-	 let (sint, i') = skip num ni "" in
+	 let (sint, i') = skip num ni in
 	 recadd i' (I (-(int_of_string sint)))
       | _ when List.mem s opsym ->
 	 recadd ni (S (s))
       | _ when List.mem s num ->
-	 let (sint, i') = skip num i "" in
+	 let (sint, i') = skip num i in
 	 recadd i' (I (int_of_string sint))
       | _ when List.mem s alpha ->
-	 let (sym, i') = skip ident i "" in
+	 let (sym, i') = skip ident i in
 	 recadd i' (S (sym))
-      | _ -> failwith ("invalid char: " ^ s ^ " at " ^ (string_of_int i))
+      | _ -> error ("invalid char: " ^ s ^ " at " ^ (string_of_int i))
     else ([], i)
   in
   (* h : int -> (token list) list *)
   let rec h i =
-    let (_, i') = skip [" "; "\t"; "\n"; "\r"; ";"] i "" in
-    if i' < len then
-      let (line, ptr) = inner i' in
-      line :: (h ptr)
+    if i < len then
+      let (line, ptr) = inner i in
+      if line = [] then h ptr else (line :: (h ptr))
     else []
   in h 0
 
@@ -246,7 +256,6 @@ let tarr = ref (Array.make 0 L)
  * expr := value
          | "(" expr* ")" *)
 let ahead () = ptr := !ptr + 1
-let error msg = failwith msg
 let accept p = if !ptr < Array.length !tarr then
 		 if p (!tarr.(!ptr)) then (ahead(); true) else false
 	       else false
@@ -285,9 +294,8 @@ let rec expr () =
       List.fold_right (fun e t -> Cons (e, t)) es Nil
     else error (add_info "invalid sytax" p !line)
 
-(* parse : string -> expr_t *)
+(* parse : string -> expr_t list *)
 let parse input =
-  line := 0;
   (* tokens : (string list) list *)
   let tokens = tokenize input in
   List.map (fun token ->
@@ -300,12 +308,30 @@ let parse input =
 	    else e
 	   ) tokens
 
-let start input = go (parse input)
+(* string -> expr_t list *)
+let start input = let _ = line := 0 in go (parse input)
 
-(* test *)
 let e1 = parse "(define (f x) (atom x))\n(f ())"
-let e2 = start "(define (my-cons a d) (lambda (f) (f a d)))\n
-		(define (my-car ad) (ad (lambda (a d) a)))\n
-		(define (my-cdr ad) (ad (lambda (a d) d)))\n
-		(define (f x y) (+ x y))\n(f 1 2)"
+let e2 = parse "(define (my-cons a d) (lambda (f) (f a d)))\n
+		(define (my-cons a d) (lambda (f) (f a d)))"
+let e2 = start "(quote ((1 2) (3 4)))"
+let e3 = start "(car (quote ((42 (11 22) 99) (3 7))))"
 
+let test () =
+  let ic = open_in "test.l" in
+  try let rec h () =
+	let line = input_line ic in
+	let exp =
+	  try parse line
+	  with Parser_error msg -> print_endline ("> " ^ line);
+				   raise (Parser_error msg)
+	in
+	let _ = match exp with
+	    [] -> ()
+	  | x :: _ -> print_endline ("> " ^ line);
+		      print_endline (List.hd (go [x])) in
+	flush stdout;
+	h ()
+      in h ()
+  with End_of_file -> close_in ic
+     | e -> close_in_noerr ic; raise e
