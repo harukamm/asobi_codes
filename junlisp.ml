@@ -69,115 +69,118 @@ let rec to_string exp =
   | Cons (l, r) -> (h l) ^ " " ^ (h r)
   in h (Cons (exp, Nil))
 
-let sat b = if b then (Sym "t") else Nil
-(* is_allsym : returns true if expr is composed only with sym *)
-(* this function is used when checking type of agrs for define/lambda *)
-let rec is_allsym e = match e with
-    Sym _ -> true
-  | Cons (Sym _, Nil) -> true
-  | Cons (Sym _, r) -> is_allsym r
-  | _ -> false
-
-(* flatten_sym : expr_t -> string list *)
-let rec flatten_sym e = match e with
-    Nil -> []
-  | Sym s -> [s]
-  | Cons (Sym s, r) -> s :: (flatten_sym r)
-  | _ -> failwith "cannot flatten"
-
 (* flatten : expr_t -> expr_t list *)
 let rec flatten e = match e with
-    Nil -> [Nil]
+    Nil -> []
   | Sym s -> [Sym s]
   | Int i -> [Int i]
-  | Cons (e, Nil) -> [e]
   | Cons (e, r) -> e :: (flatten r)
+
+(* error *)
+exception Eval_error of string
+let eval_error msg ?(s = None) e =
+  let info = match s with None -> "" | Some t -> ", " ^ t in
+  raise (Eval_error (msg ^ ": " ^ (to_string e) ^ info))
+let argc_error n = eval_error "Wrong number of arguments" ~s:(Some (string_of_int n))
+let var_void_error = eval_error "Symbol's value as variable is void"
+let wrong_type_error = eval_error "Wrong type argument"
+let invalid_func_error = eval_error "Invalid function"
+let const_symbol_error = eval_error "Attempt to set a constant symbol"
 
 let op_table = [("+", (+)); ("-", (-)); ("*", ( * )); ("/", (/)); ("%", (mod))]
 let opsym = List.map (fun (k, _) -> k) op_table
-let rwords = ["atom"; "eq"; "car"; "cdr"; "cons"; "if"; "quote"; "lambda"; "define"]
+let rwords = ["atom"; "eq"; "car"; "cdr"; "cons"; "if"; "quote"; "lambda"; "defun"]
 
-exception Invalid_use of string
-(* eval : expr_t -> (string, expr_t) Env.t -> (expr_t -> 'a) -> 'a *)
+let id = fun x -> x
+(* eval : expr_t -> (string, expr_t) Env.t -> (expr_t -> expr_t) -> expr_t *)
 let rec eval exp env cont = match exp with
-    Nil -> cont Nil
-  | Sym ("t") -> cont (Sym ("t"))
+    Nil -> cont (Nil)
+  | Sym "t" -> cont (Sym ("t"))
   | Sym (s) ->
      begin
        try cont (Env.get env s)
-       with Not_found -> raise (Invalid_use (s ^ " is not defined"))
+       with Not_found -> var_void_error (Sym (s))
      end
-  | Int (i) -> cont (Int i)
-  | Cons (Sym "atom", Cons (r, Nil)) ->
-     eval r env (fun e -> cont (sat (e = Nil)))
-  | Cons (Sym "eq", Cons (e1, Cons (e2, Nil))) ->
-     eval e1 env (fun e1' -> eval e2 env (fun e2' -> cont (sat (e1' = e2'))))
-  | Cons (Sym "car", Cons (e1, e2)) -> eval e1 env cont
-  | Cons (Sym "cdr", Cons (e1, e2)) -> eval e2 env cont
-  | Cons (Sym "cons", Cons (e1, e2)) ->
-     eval e1 env (fun e1' -> eval e2 env (fun e2' -> cont (Cons (e1', e2'))))
-  | Cons (Sym op, Cons (e1, Cons (e2, Nil))) when List.mem op opsym ->
-     let f = List.assoc op op_table in
-     eval e1 env (fun e1' ->
-		  eval e2 env (fun e2' ->
-			       let msg = " is not an integer" in
-			       match (e1', e2') with
-				 (Int (i1), Int (i2)) -> cont (Int (f i1 i2))
-			       | (Int _, _) -> failwith ((to_string e2) ^ msg)
-			       | _ -> failwith ((to_string e1) ^ msg)))
-  | Cons (Sym "-", Cons (e, Nil)) ->
-     eval e env (fun e' ->
-		 match e' with
-		   Int (i) -> cont (Int (- i))
-		 | _ -> failwith ((to_string e') ^ " cant be minus"))
+  | Int (i) -> cont (Int (i))
   | Cons (Sym "if", Cons (p, Cons (x, Cons (y, Nil)))) ->
      eval p env (fun p' ->
 		 if p' = Sym ("t") then eval x env cont else eval y env cont)
   | Cons (Sym "quote", Cons (r, Nil)) -> cont r
-  | Cons (Sym "lambda", Cons (args, Cons (e, Nil))) when is_allsym args -> cont exp
-  | Cons (Sym "define", Cons (args, Cons (e, Nil))) when is_allsym args -> cont exp
-  | Cons (Sym s, e) when List.mem s (opsym @ rwords) -> raise (Invalid_use s)
-  | Cons (l, Nil) -> eval l env (fun e' -> cont (Cons (e', Nil)))
+  | Cons (Sym "lambda", _) -> cont exp
+  | Cons (Sym "defun", Cons (Sym f, (Cons (args, _)))) -> cont exp
+  | Cons (Sym "atom", Cons (r, Nil)) ->
+     eval r env (fun e ->
+		 match e with
+		 | Nil | Sym _ | Int _ -> cont (Sym ("t"))
+		 | Cons _ -> cont (Nil))
+  | Cons (Sym "eq", Cons (e1, Cons (e2, Nil))) ->
+     eval e1 env (fun e1' ->
+		  eval e2 env (fun e2' ->
+			       match (e1', e2') with
+			       | (Nil, Nil) -> cont (Sym "t")
+			       | (Sym s1, Sym s2) when s1 = s2 -> cont (Sym "t")
+			       | (Int i1, Int i2) when i1 = i2 -> cont (Sym "t")
+			       | _ -> cont (Nil)))
+  | Cons (Sym "car", Cons (e, Nil)) ->
+     eval e env (fun e' -> match e' with
+			     Nil -> cont (Nil)
+			   | Cons (l, _) -> cont (l)
+			   | v -> wrong_type_error v)
+  | Cons (Sym "cdr", Cons (e, Nil)) ->
+     eval e env (fun e' -> match e' with
+			     Nil -> cont (Nil)
+			   | Cons (_, r) -> cont (r)
+			   | v -> wrong_type_error v)
+  | Cons (Sym "cons", Cons (e1, Cons (e2, Nil))) ->
+     eval e1 env (fun e1' ->
+		  eval e2 env (fun e2' -> cont (Cons (e1', e2'))))
+  | Cons (Sym s, r) when List.mem s rwords ->
+     let len = List.length (flatten r) in argc_error len (Sym s)
+  | Cons (Sym op, r) when List.mem op opsym ->
+     let elst' = List.map (fun e -> eval e env id) (flatten r) in
+     let len = List.length elst' in
+     let _ = if op = "/" && len < 2 then argc_error len (Sym "/") in
+     let take_int e = match e with Int (i) -> i | e -> wrong_type_error e in
+     if len = 0
+     then cont (Int (0))
+     else let hd = take_int (List.hd elst') in
+	  let tl = List.tl elst' in
+	  let f = List.assoc op op_table in
+	  let n' = List.fold_left (fun n e -> f n (take_int e)) hd tl in
+	  cont (Int (n'))
   | Cons (l, r) ->
-     eval l env (fun e1 ->
-		   match e1 with
-		   | Cons (Sym "lambda", Cons (args, Cons (e, Nil))) ->
-		      let arglst =
-			try flatten_sym args
-			with _ -> raise (Invalid_use "not-symbol arg") in
-		      let elst = flatten r in (* call by name *)
+     eval l env (fun f ->
+		   match f with
+		   | Cons (Sym "lambda", Cons (args, Cons (e', Nil))) ->
+		      let take_argname e = match e with
+			  Nil -> const_symbol_error Nil
+			| Sym ("t") -> const_symbol_error (Sym ("t"))
+		       	| Sym s -> s
+			| e -> invalid_func_error e in
+		      let argnames = List.map take_argname (flatten args) in
+		      let elst' = List.map (fun e -> eval e env id) (flatten r) in
 		      let env2 =
-			try
-			  List.fold_right2
-			    (fun k e env' -> Env.add env' k e) arglst elst env
-			with _ -> raise (Invalid_use "insufficient args") in
-			eval e env2 cont
-		   | _ -> let _ = print_endline (to_string l) in raise (Invalid_use "application"))
+			try List.fold_right2
+			      (fun n e env' -> Env.add env' n e) argnames elst' env
+			with _ -> argc_error (List.length elst') f in
+			eval e' env2 cont
+		   | _ -> invalid_func_error f)
 
 let genv = ref Env.empty
-(* loop : expr_t list -> (string, expr_t) Env.t -> (expr_t list -> 'a) -> 'a *)
-let rec loop exprs env cont = match exprs with
-    [] -> cont []
+(* evals : expr_t list -> expr_t list *)
+let rec evals exprs  = match exprs with
+    [] -> []
   | x :: xs ->
-     try
-       eval x env (fun v ->
-		   let cont' = (fun es -> cont (v :: es)) in
-		   match v with
-		   | Cons (Sym "define", Cons (Sym f, Cons (e, Nil))) ->
-		      let env2 = Env.add env f (Cons (e, Nil)) in
-		      let _ = genv := env2 in
-		      loop xs env2 cont'
-		   | Cons (Sym "define", Cons (Cons (Sym f, args), Cons (e, Nil))) ->
-		      let lam = Cons (Sym "lambda", Cons (args, Cons (e, Nil))) in
-		      let env2 = Env.add env f lam in
-		      let _ = genv := env2 in
-		      loop xs env2 cont'
-		   | _ -> loop xs env cont')
-     with Invalid_use msg ->
-       raise (Invalid_use ("error: " ^ msg ^ "\ncannot eval: " ^ (to_string x)))
+     let x' = eval x !genv id in
+     let _ = match x' with
+       | Cons (Sym "defun", Cons (Sym f, (Cons (args, e')))) ->
+	  let lam = Cons (Sym "lambda", Cons (args, e')) in
+	  genv := Env.add !genv f lam
+       | _ -> () in
+     x' :: evals xs
 
-(* go : expr_t list -> *)
-let go program = loop program !genv (List.map to_string)
+(* go : expr_t list -> string list *)
+let go exprs = List.map to_string (evals exprs)
 
 let ascii code = String.make 1 (Char.chr code)
 let asciis st en =
@@ -316,6 +319,7 @@ let e2 = parse "(define (my-cons a d) (lambda (f) (f a d)))\n
 		(define (my-cons a d) (lambda (f) (f a d)))"
 let e2 = start "(quote ((1 2) (3 4)))"
 let e3 = start "(car (quote ((42 (11 22) 99) (3 7))))"
+let e4 = start "((lambda () (+ 1 2)))"
 
 let test () =
   let ic = open_in "test.l" in
