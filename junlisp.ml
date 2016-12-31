@@ -87,14 +87,15 @@ let wrong_type_error = eval_error "Wrong type argument"
 let invalid_func_error = eval_error "Invalid function"
 let const_symbol_error = eval_error "Attempt to set a constant symbol"
 
-let op_table = [("+", (+)); ("-", (-)); ("*", ( * )); ("/", (/)); ("%", (mod))]
+let op_table = [("+", (+)); ("-", (-)); ("*", ( * )); ("/", (/)); ("mod", (mod))]
 let opsym = List.map (fun (k, _) -> k) op_table
-let rwords = ["atom"; "eq"; "car"; "cdr"; "cons"; "if"; "quote"; "lambda"; "defun"]
+let rwords = ["atom"; "eq"; "car"; "cdr"; "cons"; "if"; "quote"; "lambda"; "defun"; "define"]
 
 let id = fun x -> x
 (* eval : expr_t -> (string, expr_t) Env.t -> (expr_t -> expr_t) -> expr_t *)
 let rec eval exp env cont = match exp with
     Nil -> cont (Nil)
+  | Sym "nil" -> cont (Nil)
   | Sym "t" -> cont (Sym ("t"))
   | Sym (s) ->
      begin
@@ -108,6 +109,7 @@ let rec eval exp env cont = match exp with
   | Cons (Sym "quote", Cons (r, Nil)) -> cont r
   | Cons (Sym "lambda", _) -> cont exp
   | Cons (Sym "defun", Cons (Sym f, (Cons (args, _)))) -> cont exp
+  | Cons (Sym "define", Cons (Sym f, (Cons (e, _)))) -> cont exp
   | Cons (Sym "atom", Cons (r, Nil)) ->
      eval r env (fun e ->
 		 match e with
@@ -173,8 +175,11 @@ let rec evals exprs  = match exprs with
   | x :: xs ->
      let x' = eval x !genv id in
      let _ = match x' with
-       | Cons (Sym "defun", Cons (Sym f, (Cons (args, e')))) ->
-	  let lam = Cons (Sym "lambda", Cons (args, e')) in
+       | Cons (Sym "define", Cons (Sym f, Cons (e, Nil))) ->
+	  let e' = eval e !genv id in
+	  genv := Env.add !genv f e'
+       | Cons (Sym "defun", Cons (Sym f, (Cons (args, e)))) ->
+	  let lam = Cons (Sym "lambda", Cons (args, e)) in
 	  genv := Env.add !genv f lam
        | _ -> () in
      x' :: evals xs
@@ -186,8 +191,6 @@ let ascii code = String.make 1 (Char.chr code)
 let asciis st en =
   let rec h i = if en < i then [] else (ascii i) :: h (i + 1) in h st
 let num = asciis 48 57
-let alpha = asciis 97 122
-let ident = "-" :: (num @ alpha)
 
 (* token *)
 exception Parser_error of string
@@ -230,13 +233,12 @@ let tokenize str =
       | "-" when List.mem ns num ->
 	 let (sint, i') = skip num ni in
 	 recadd i' (I (-(int_of_string sint)))
-      | _ when List.mem s opsym ->
-	 recadd ni (S (s))
       | _ when List.mem s num ->
 	 let (sint, i') = skip num i in
 	 recadd i' (I (int_of_string sint))
-      | _ when List.mem s alpha ->
-	 let (sym, i') = skip ident i in
+      | _ ->
+	 let spec = [" "; "\t"; "("; ")"; "\n"; "\r"; ";"] in
+	 let (sym, i') = until (fun s -> not (List.mem s spec)) i "" in
 	 recadd i' (S (sym))
       | _ -> error ("invalid char: " ^ s ^ " at " ^ (string_of_int i))
     else ([], i)
@@ -320,6 +322,17 @@ let e2 = parse "(define (my-cons a d) (lambda (f) (f a d)))\n
 let e2 = start "(quote ((1 2) (3 4)))"
 let e3 = start "(car (quote ((42 (11 22) 99) (3 7))))"
 let e4 = start "((lambda () (+ 1 2)))"
+let e5 = start "(defun katsu (e1 e2) (if (eq e1 t) (if (eq e2 t) t nil) nil))
+		(katsu (eq (mod 10 5) 0) (eq (mod 15 5) 0))
+		(katsu (eq (mod 10 5) 1) (eq (mod 15 5) 0))
+		(define FizzBuzz (quote FizzBuzz))
+		(define Buzz (quote Buzz))
+		(define Fizz (quote Fizz))
+		(defun fb (n) (if (eq (mod n 15) 0) FizzBuzz (if (eq (mod n 5) 0) Buzz (if (eq (mod n 3) 0) Fizz n)))) ;fizzbuzz
+		(fb 15) ;FizzBuzz
+		(fb 10) ;Buzz
+		(fb 18) ;Fizz
+		(fb 11) ;11"
 
 let test () =
   let ic = open_in "test.l" in
