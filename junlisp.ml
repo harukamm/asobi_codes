@@ -260,6 +260,7 @@ let tarr = ref (Array.make 0 L)
           | [0-9]+
  * expr := value
          | "(" expr* ")" *)
+
 let ahead () = ptr := !ptr + 1
 let accept p = if !ptr < Array.length !tarr then
 		 if p (!tarr.(!ptr)) then (ahead(); true) else false
@@ -352,3 +353,91 @@ let test () =
       in h ()
   with End_of_file -> close_in ic
      | e -> close_in_noerr ic; raise e
+
+(* value := [a-z]+
+          | [0-9]+
+ * expr := value
+         | "(" expr* ")" *)
+
+(* another version *)
+let input = ref ""
+type 'a vParser = int -> (('a * int) option)
+
+exception End
+let isLast i = String.length !input <= i
+let get i = if isLast i then (raise End) else String.sub !input i 1
+let return v : 'a vParser = fun i -> Some (v, i)
+let failure : 'a vParser = fun i -> None
+
+(* (>>) : 'a vParser -> ('a -> 'b vParser) -> 'b vParser *)
+let (>>) p f : 'b vParser = fun ptr ->
+  match (p ptr) with
+    None -> None
+  | Some (s, ptr') -> (f s) ptr'
+
+(* (++) : 'a vParser -> 'a vParser -> 'a vParser *)
+let (++) p q : 'a vParser = fun ptr ->
+  match (p ptr) with
+    None -> q ptr
+  | Some (s, ptr') -> Some (s, ptr')
+
+(* sat : (string -> bool) -> string vParser *)
+let sat p : string vParser = fun ptr ->
+  try let s = get ptr in
+      if (p s) then Some (s, ptr + 1) else None
+  with End -> None
+
+(* many : 'a vParser -> 'a list vParser *)
+let rec many p : 'a list vParser =
+  (p >> (fun x -> (fun ptr ->
+		   match (many p ptr) with
+		     None -> Some ([x], ptr)
+		   | Some (xs, ptr') -> Some (x :: xs, ptr'))))
+  ++ (return [])
+
+let manyp p = many (sat p)
+let space = manyp (fun s -> s = " " || s = "\t")
+let spacep p = space >> (fun _ -> p >> (fun x -> space >> (fun _ -> return x)))
+let const a = fun _ -> a
+
+(* int : expr_t vParser *)
+let int : expr_t vParser =
+  let nat : int vParser =
+    many (sat (fun s -> List.mem s num)) >>
+      (fun ns -> 
+       return (List.fold_left (fun i s -> i * 10 + (int_of_string s)) 0 ns)) in
+  (nat >> (fun n -> return (Int (n))))
+  ++ ((sat ((=) "-")) >>
+	(const nat) >> (fun n -> return (Int (-n))))
+
+(* sym : expr_t vParser *) 
+let spec = [" "; "\t"; "("; ")"; "\n"; "\r"; ";"]
+let sym : expr_t vParser =
+  many (sat (fun s -> not (List.mem s spec))) >>
+    (fun ns -> return (Sym (List.fold_right (fun s t -> s ^ t) ns "")))
+
+(* expr : int -> expr_t VParser *)
+let rec expr : expr_t vParser =
+  (space >> (fun _ -> (fun i -> expr i)))
+  ++ (manyp (fun s -> s = "\n" || s = "\r") >> const expr)
+  ++ (sat ((=) "(") >> const (many expr) >>
+	(fun es -> (sat ((=) ")")) >>
+		     let e = List.fold_right
+			       (fun e t -> Cons (e, t)) es Nil in
+		     const (return (e))))
+  ++ (sat (fun s -> s = ";") >> const (manyp (fun s -> s <> "\n") >> const expr))
+  ++ int ++ sym
+
+(*
+(* parse : string -> expr list *)
+let parse str =
+  input := str;
+  len := String.length str;
+  let rec h i =
+    if i < len then
+      let (expr, i') = expr i in
+      expr :: (h i')
+    else []
+
+  let hoge = parse "(define f (x y) hoge) \n   \n (x y)"
+ *)
