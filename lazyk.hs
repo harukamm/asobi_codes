@@ -83,7 +83,7 @@ hw_expr' :: Expr
 hw_expr' = eval hw_expr
 
 --  H   e    l    l    o    ,   W   o    r    l    d    !   \n
---  72  101  108  108  111  44  87  111  114  108  100  33  10
+-- [72, 101, 108, 108, 111, 44, 87, 111, 114, 108, 100, 33, 10]
 
 ch256 :: String
 ch256 = "SII(SII(S(S(KS)K)I))"
@@ -94,7 +94,7 @@ ch256_expr = lazyk2 ch256
 ch256_expr' :: Expr
 ch256_expr' = eval ch256_expr
 
--- 参考 wada314.jp/tcf/unlambda/function.html
+-- 参考 http://wada314.jp/tcf/unlambda/function.html
 data Lam = FUN Char Lam | APP Lam Lam | CONST Char | UNLAM Expr deriving (Show)
 
 {- lamb := "^" c lam | "`" lam lam | $ c -}
@@ -165,4 +165,16 @@ chToInt ch = case (apply (apply ch Succ) (Nat 0)) of
 yconv :: Expr
 yconv = lamToSK "^g`^X`$g`$X$X^Y`$g`$Y$Y"
 
-main = print (chToInt (makeN 5))
+true' :: Expr
+true' = lamToSK "^x^y$x"
+
+false' :: Expr
+false' = lamToSK "^x^y$y"
+
+car :: Expr
+car = lamToSK "^p`$p^a^b$a"
+
+-- h_epxr :: Expr
+h_expr = apply hw_expr' K
+
+main = print (p one)
