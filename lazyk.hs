@@ -1,5 +1,5 @@
 -- LazyK interpreter
-data Expr = App Expr Expr | I | K | S | Succ | Nat Int deriving Show
+data Expr = App Expr Expr | I | K | S | Succ | Nat Int deriving (Show, Eq)
 
 -- interpreter
 p :: Expr -> String
@@ -51,6 +51,7 @@ expr_h' ('(' : s) = case (expr' s) of
 expr_h' ('I' : s) = [(I, s)]
 expr_h' ('S' : s) = [(S, s)]
 expr_h' ('K' : s) = [(K, s)]
+expr_h' (' ' : s) = expr_h' s
 expr_h' _         = []
 
 expr' :: String -> [(Expr, String)]
@@ -73,29 +74,8 @@ lazyk1 = iriguchi expr
 lazyk2 :: String -> Expr
 lazyk2 = iriguchi expr'
 
-hw :: String
-hw = "`k``s``si`k```s``sss```s``s`ks`ssi``ss`ki``s`ksk`k``s``si`k```ss``s``ss`ki``ss```ss`ss``ss`ki``s`ksk`k``s``si`k```s``si``ss``ss`ki```ss`s``sss``ss`ki``s`ksk`k``s``si`k```s``si``ss``ss`ki```ss`s``sss``ss`ki``s`ksk`k``s``si`k```ss``s``sss``ss```ss`ss``ss`ki``s`ksk`k``s``si`k```ss``ss``s``sss``s``sss``ss`ki``s`ksk`k``s``si`k```s``ss```ssi``ss`ki``ss`ki``s`ksk`k``s``si`k```s``si``ss``s``sss``ss`ki``ss```ss``ssi``ss`ki``s`ksk`k``s``si`k```ss``s``sss``ss```ss`ss``ss`ki``s`ksk`k``s``si`k```ss``ss``ss``ss``s``sss``ss```ss`ss``ss`ki``s`ksk`k``s``si`k```s``si``ss``ss`ki```ss`s``sss``ss`ki``s`ksk`k``s``si`k```s``ss`ki``ss```ss`ss``ss`ki``s`ksk`k``s``si`k```ss```ss`ss``ss`ki``s`ksk`k`k```sii```sii``s``s`kski"
-
-hw_expr :: Expr
-hw_expr = lazyk1 hw
-
-hw_expr' :: Expr
-hw_expr' = eval hw_expr
-
---  H   e    l    l    o    ,   W   o    r    l    d    !   \n
--- [72, 101, 108, 108, 111, 44, 87, 111, 114, 108, 100, 33, 10]
-
-ch256 :: String
-ch256 = "SII(SII(S(S(KS)K)I))"
-
-ch256_expr :: Expr
-ch256_expr = lazyk2 ch256
-
-ch256_expr' :: Expr
-ch256_expr' = eval ch256_expr
-
 -- 参考 http://wada314.jp/tcf/unlambda/function.html
-data Lam = FUN Char Lam | APP Lam Lam | CONST Char | UNLAM Expr deriving (Show)
+data Lam = FUN Char Lam | APP Lam Lam | CONST Char | UNLAM Expr deriving (Show, Eq)
 
 {- lamb := "^" c lam | "`" lam lam | $ c -}
 lamb :: String -> [(Lam, String)]
@@ -121,11 +101,15 @@ conv :: Lam -> Lam
 conv (FUN f (CONST f'))
      | f == f'          = UNLAM I
      | otherwise        = APP (UNLAM K) (CONST f')
-conv (FUN c1 (APP x y)) = APP (APP (UNLAM S) x') y'
-    where x'            = conv (FUN c1 x)
-          y'            = conv (FUN c1 y)
-conv (FUN f (FUN g x))  = conv (FUN f (conv (FUN g x)))
-conv (FUN f (UNLAM e))  = APP (UNLAM K) (UNLAM e)
+conv (FUN c1 (APP x y))
+     | x == UNLAM I     = conv (FUN c1 y)
+     | otherwise        = APP (APP (UNLAM S) x') y'
+     where x'           = conv (FUN c1 x)
+           y'           = conv (FUN c1 y)
+conv (FUN f (FUN g x))
+     | x == APP (CONST f) (CONST g) = UNLAM I
+     | otherwise        = conv (FUN f (conv (FUN g x)))
+conv (FUN f (UNLAM e))  = APP (UNLAM K) (UNLAM (eval e))
 conv t                  = t
 
 toUnlam :: Lam -> Expr
@@ -139,42 +123,45 @@ lamToSK = toUnlam . lambda
 t1 :: Expr
 t1 = lamToSK "^x`$xi" --``si`ki
 
-zero :: Lam
-zero = lambda "^s^z$z"
+zero :: Expr
+zero = lamToSK "^s^z$z"
 
-zero' :: Expr
-zero' = toUnlam zero
-
-sucn :: Lam
-sucn = lambda "^n^s^z`$s``$n$s$z"
-
-sucn' :: Expr
-sucn' = toUnlam sucn
+sucn :: Expr
+sucn = lazyk2 "S (S (K S) K)" --lamToSK "^n^s^z`$s``$n$s$z"
 
 one :: Expr
-one = apply sucn' zero'
+one = apply sucn zero
 
 makeN :: Int -> Expr
-makeN n = if n <= 0 then zero' else apply sucn' (makeN (n - 1))
+makeN n = if n <= 0 then zero else apply sucn (makeN (n - 1))
 
 chToInt :: Expr -> Int
-chToInt ch = case (apply (apply ch Succ) (Nat 0)) of
+chToInt ch = case eval (App (App ch Succ) (Nat 0)) of
                Nat n -> n
                _ -> error "arg is not ch"
 
 yconv :: Expr
 yconv = lamToSK "^g`^X`$g`$X$X^Y`$g`$Y$Y"
 
-true' :: Expr
-true' = lamToSK "^x^y$x"
-
-false' :: Expr
-false' = lamToSK "^x^y$y"
+cons :: Expr
+cons = lamToSK "^a^b^f``$f$a$b"
 
 car :: Expr
 car = lamToSK "^p`$p^a^b$a"
 
--- h_epxr :: Expr
-h_expr = apply hw_expr' K
+cdr :: Expr
+cdr = lamToSK "^p`$p^a^b$b"
 
-main = print (p one)
+cons' :: Expr -> Expr -> Expr
+cons' a b = App (App S (App (App S I) (App K a))) (App K b)
+
+car' :: Expr -> Expr
+car' p = App p K
+
+cdr' :: Expr -> Expr
+cdr' p = App p (App K I)
+
+ch256 :: Expr
+ch256 = lazyk2 "SII(SII(S(S(KS)K)I))"
+
+main = print (chToInt (car' (cons' ch256 ch256)))
