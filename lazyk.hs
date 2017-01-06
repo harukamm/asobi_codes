@@ -1,3 +1,5 @@
+import Data.Char
+
 -- LazyK interpreter
 data Expr = App Expr Expr | I | K | S | Succ | Nat Int deriving (Show, Eq)
 
@@ -123,6 +125,7 @@ lamToSK = toUnlam . lambda
 t1 :: Expr
 t1 = lamToSK "^x`$xi" --``si`ki
 
+-- church numeral
 zero :: Expr
 zero = lamToSK "^s^z$z"
 
@@ -132,36 +135,66 @@ sucn = lazyk2 "S (S (K S) K)" --lamToSK "^n^s^z`$s``$n$s$z"
 one :: Expr
 one = apply sucn zero
 
-makeN :: Int -> Expr
-makeN n = if n <= 0 then zero else apply sucn (makeN (n - 1))
+intToChn :: Int -> Expr
+intToChn n = if n <= 0 then zero else apply sucn (intToChn (n - 1))
 
-chToInt :: Expr -> Int
-chToInt ch = case eval (App (App ch Succ) (Nat 0)) of
+chnToInt :: Expr -> Int
+chnToInt ch = case eval (App (App ch Succ) (Nat 0)) of
                Nat n -> n
-               _ -> error "arg is not ch"
+               _ -> error "arg is not a churc numeral."
 
+-- ycombinator
 yconv :: Expr
 yconv = lamToSK "^g`^X`$g`$X$X^Y`$g`$Y$Y"
 
-cons :: Expr
-cons = lamToSK "^a^b^f``$f$a$b"
+{- -- another lst expression 
+cons :: Expr -> Expr -> Expr
+cons a b = apply (apply (lamToSK "^a^b^f``$f$a$b") a) b
+-- \f -> (f 1) (\f -> (f 2) (\f -> (f 3) ... ))
 
-car :: Expr
-car = lamToSK "^p`$p^a^b$a"
+car :: Expr -> Expr
+car p = apply (lamToSK "^p`$p^a^b$a") p
+-- p (\a -> \b -> a) .. `$pk
 
-cdr :: Expr
-cdr = lamToSK "^p`$p^a^b$b"
+cdr :: Expr -> Expr
+cdr p = apply (lamToSK "^p`$p^a^b$b") p
+-- p (\a -> \b -> b) .. `$p`sk
+-}
 
-cons' :: Expr -> Expr -> Expr
-cons' a b = App (App S (App (App S I) (App K a))) (App K b)
+nil :: Expr
+nil = lamToSK "^c^n$n"
+-- \c -> \n -> n     .. `sk
 
-car' :: Expr -> Expr
-car' p = App p K
+cons :: Expr -> Expr -> Expr
+cons a b = apply (apply (lamToSK "^a^b^c^n``$c$a``$b$c$n") a) b
+-- \c -> \n -> c 1 (c 2 (c 3 n))
 
-cdr' :: Expr -> Expr
-cdr' p = App p (App K I)
+car :: Expr -> Expr
+car p = apply (lamToSK "^p``$pkk") p
 
-ch256 :: Expr
-ch256 = lazyk2 "SII(SII(S(S(KS)K)I))"
+cdr :: Expr -> Expr
+cdr p = apply (lamToSK "^p``$p`skk") p
 
-main = print (chToInt (car' (cons' ch256 ch256)))
+chn256 :: Expr
+chn256 = lazyk2 "SII(SII(S(S(KS)K)I))"
+
+charToChn :: Char -> Expr
+charToChn = intToChn . ord
+
+chnToChar :: Expr -> Char
+chnToChar = chr . chnToInt
+
+strToChn :: String -> Expr
+strToChn = foldr cons nil . map charToChn
+
+chnToStr :: Expr -> String
+chnToStr = map chnToChar . getlst
+    where getlst :: Expr -> [Expr]
+          getlst e
+              | e == nil  = []
+              | otherwise = (car e) : getlst (cdr e)
+
+hello :: Expr
+hello = strToChn "Hello, World!"
+
+main = print (chnToChar (car hello) == 'H')
