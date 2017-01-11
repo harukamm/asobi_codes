@@ -293,7 +293,7 @@ public class JVM {
 	}
 	int nptr = this.ptr + bsize;
 	long val = 0;
-        if (this.len <= nptr) {
+        if (this.len <= nptr - 1) {
 	    throw new JVMException(ECode.INVALID_INDEX);
 	}
 	for(int i = this.ptr; i < nptr; i++) {
