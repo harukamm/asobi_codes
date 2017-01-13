@@ -136,7 +136,6 @@ public class JVM {
         long high_bytes;
         long low_bytes;
         int descriptor_index;
-        int length;
         int[] bytes_utf8;
 
         public String valueOfbytes_utf8() {
@@ -179,8 +178,6 @@ public class JVM {
                 s.append(descriptor_index);
                 break;
             case CONSTANT_Utf8:
-                s.append(length);
-                s.append(',');
                 s.append(valueOfbytes_utf8());
                 break;
             }
@@ -232,18 +229,13 @@ public class JVM {
     class CodeAttribute {
         int max_stack;
         int max_locals;
-        long code_length;
         int[] code;
-        int exception_table_length;
         Exception_info[] exception_table;
-        int attributes_count;
         Attribute_info[] attributes;
         public String toString() {
-            return "{" + max_stack + ", " + max_locals + ", " + code_length +
-                ", code: " + Arrays.toString(code) + ", " +
-                exception_table_length + ", exception_table:" +
-                Arrays.toString(exception_table) + ", " +
-                attributes_count + ", attributes: " +
+            return "{" + max_stack + ", " + max_locals + ", code: " +
+                Arrays.toString(code) + ", exception_table:" +
+                Arrays.toString(exception_table) + ", attributes: " +
                 util.Arrays.toString(attributes) + "}";
         }
     }
@@ -251,7 +243,6 @@ public class JVM {
     class Attribute_info {
         String name;
         int attribute_name_index;
-        int attribute_length;
         int constantvalue_index;
         CodeAttribute code_attribute;
         int[] exception_index_table;
@@ -287,8 +278,7 @@ public class JVM {
                 break;
             }
             return name + "Attribute{attribute_name_index: " +
-                attribute_name_index + ", attribute_length: " +
-                attribute_length + ", " + s + "}";
+                attribute_name_index + ", " + s + "}";
         }
     }
 
@@ -297,14 +287,13 @@ public class JVM {
         int access_flags;
         int name_index;
         int descriptor_index;
-        int attributes_count;
         Attribute_info[] attributes;
 
         @Override
         public String toString() {
             return ("FM_info{" + access_flags + ", " + name_index + ", " +
-                    descriptor_index + ", " + attributes_count +
-                    ", attributes:" + util.Arrays.toString(attributes) + "}");
+                    descriptor_index + ", attributes:" +
+                    util.Arrays.toString(attributes) + "}");
         }
     }
 
@@ -317,13 +306,9 @@ public class JVM {
         int access_flags;
         int this_class;
         int super_class;
-        int interfaces_count;
         int[] interfaces;
-        int fields_count;
         FM_info[] fields;
-        int methods_count;
         FM_info[] methods;
-        int attributes_count;
         Attribute_info[] attributes;
 
         private String t(String s) { return "\n\t" + s + ": "; }
@@ -338,13 +323,9 @@ public class JVM {
             s.append(t("access_flags") + access_flags);
             s.append(t("this_class") + this_class);
             s.append(t("super_class") + super_class);
-            s.append(t("interfaces_count") + interfaces_count);
             s.append(t("interfaces") + util.Arrays.toString(interfaces));
-            s.append(t("fields_count") + fields_count);
             s.append(t("fields") + util.Arrays.toString(fields));
-            s.append(t("method_count") + methods_count);
             s.append(t("methods") + util.Arrays.toString(methods));
-            s.append(t("attributes_count") + attributes_count);
             s.append(t("attributes") + util.Arrays.toString(attributes));
             s.append("\n}");
             System.out.println(s);
@@ -417,7 +398,6 @@ public class JVM {
                 break;
             case CONSTANT_Utf8:
                 int length = readU2();
-                c.length = length;
                 c.bytes_utf8 = readU1_n(length);
                 break;
             case UNKNOWN:
@@ -486,15 +466,12 @@ public class JVM {
         long code_length = readU4();
         if(code_length <= 0)
             throw new JVMException(ECode.EMPTY_CODE_LENGTH);
-        ca.code_length = code_length;
         ca.code = readU1_n((int)code_length);
 
         int ext_length = readU2();
-        ca.exception_table_length = ext_length;
         ca.exception_table = exceptionTable(ext_length);
 
         int attributes_cnt = readU2();
-        ca.attributes_count = attributes_cnt;
         ca.attributes = attributes(attributes_cnt);
         return ca;
     }
@@ -513,6 +490,7 @@ public class JVM {
                 throw new JVMException(ECode.CPOOL_ATTRIBUTE);
             }
             Attribute_info a = new Attribute_info();
+            a.attribute_name_index = name_index;
             int length = (int)readU4();
             String s = cp.valueOfbytes_utf8();
             a.name = s;
@@ -540,8 +518,6 @@ public class JVM {
                 /*
                 throw new JVMException(ECode.CPOOL_ATTRIBUTE); */
             }
-            a.attribute_name_index = name_index;
-            a.attribute_length = length;
             as[i] = a;
         }
         return as;
@@ -555,7 +531,6 @@ public class JVM {
             f.name_index = readU2();
             f.descriptor_index = readU2();
             int alen = readU2();
-            f.attributes_count = alen;
             f.attributes = attributes(alen);
             fms[i] = f;
         }
@@ -582,16 +557,12 @@ public class JVM {
             cfile.this_class = readU2();
             cfile.super_class = readU2();
             int interfaces_cnt = readU2();
-            cfile.interfaces_count = interfaces_cnt;
             cfile.interfaces = readU2_n(interfaces_cnt);
             int fields_cnt = readU2();
-            cfile.fields_count = fields_cnt;
             cfile.fields = fields_methods(fields_cnt);
             int methods_cnt = readU2();
-            cfile.methods_count = methods_cnt;
             cfile.methods = fields_methods(methods_cnt);
             int attrs_cnt = readU2();
-            cfile.attributes_count = attrs_cnt;
             cfile.attributes = attributes(attrs_cnt);
 
             this.parsed_cfile = true;
@@ -612,8 +583,8 @@ public class JVM {
     }
 
     public static void main(String[] args) {
-        //JVM jvm = new JVM("Hello.class");
-        JVM jvm = new JVM("TameikeSearch.class");
+        JVM jvm = new JVM("Hello.class");
+        //JVM jvm = new JVM("TameikeSearch.class");
         jvm.classParser();
         // jvm.jikkou();
     }
