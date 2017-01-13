@@ -3,25 +3,29 @@
 // $ javac -J-'Dfile.encoding=UTF8' JVM.java
 // $ javap -v Hello.class
 import java.util.Arrays;
+import java.util.Stack;
 import java.io.File;
-import java.io.FileReader;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.file.*;
+import java.lang.reflect.Field;
 
 // ------------------------///
 //  Exception for JVM
 // ------------------------///
 enum ECode {
     NOT_INITIALIZED,
-    INVALID_ARG_READ,
     INVALID_INDEX,
     INVALID_MAGIC,
     INVALID_TAG_VALUE,
     CPOOL_ATTRIBUTE,
     INVALID_UTF8,
-    EMPTY_CODE_LENGTH;
+    INVALID_CPOOL_INDEX,
+    EMPTY_CODE_LENGTH,
+    NO_MAIN_FUNC,
+    UNDEFINED_OP,
+    NO_OPERAND;
 }
 
 class JVMException extends Exception {
@@ -37,9 +41,6 @@ class JVMException extends Exception {
         case NOT_INITIALIZED:
             s = "Not initialized class file data.";
             break;
-        case INVALID_ARG_READ:
-            s = "Parser failed. (read)";
-            break;
         case INVALID_INDEX:
             s = "Parser failed. (out of index)";
             break;
@@ -49,6 +50,9 @@ class JVMException extends Exception {
         case INVALID_TAG_VALUE:
             s = "tag value is not correct.";
             break;
+        case INVALID_CPOOL_INDEX:
+            s = "reference to non-exists constant-pool";
+            break;
         case CPOOL_ATTRIBUTE:
             s = "reference to unknown constant_pool by attribute";
             break;
@@ -57,6 +61,15 @@ class JVMException extends Exception {
             break;
         case EMPTY_CODE_LENGTH:
             s = "code length in CodeAttribute is Empty";
+            break;
+        case NO_MAIN_FUNC:
+            s = "There is no main function";
+            break;
+        case UNDEFINED_OP:
+            s = "Operator is undefined yet";
+            break;
+        case NO_OPERAND:
+            s = "No valid operand";
             break;
         }
         return s;
@@ -488,11 +501,7 @@ public class JVM {
         Attribute_info[] as = new Attribute_info[size];
         for(int i = 0; i < size; i++) {
             int name_index = readU2();
-            if(cps.length <= name_index) {
-                System.out.println("invalid_name_index: " + name_index);
-                throw new JVMException(ECode.CPOOL_ATTRIBUTE);
-            }
-            Cp_info cp = cps[name_index];
+            Cp_info cp = getConstantPool(name_index);
             if(cp.tag != CONSTANT_TAG.CONSTANT_Utf8) {
                 throw new JVMException(ECode.CPOOL_ATTRIBUTE);
             }
@@ -520,10 +529,8 @@ public class JVM {
                 int lvt_len = readU2();
                 a.local_variable_table = localVariableTable(lvt_len);
             } else if(!s.equals("Synthetic") && !s.equals("Deprecated")) {
-                //System.out.println("unknown name: " + s + " length: " + length);
+                System.out.println("unknown name: " + s + " length: " + length);
                 a.others = readU1_n(length);
-                /*
-                throw new JVMException(ECode.CPOOL_ATTRIBUTE); */
             }
             as[i] = a;
         }
@@ -548,7 +555,6 @@ public class JVM {
         try {
             if(!this.state)
                 throw new JVMException(ECode.NOT_INITIALIZED);
-
             cfile = new ClassFile();
             long magic = readU4();
             if(magic != 0xcafebabeL) {
@@ -580,10 +586,99 @@ public class JVM {
         }
     }
 
+    private Cp_info getConstantPool(int index) throws JVMException {
+        Cp_info[] cps = cfile.constant_pool;
+        if(cps.length <= index)
+            throw new JVMException(ECode.INVALID_CPOOL_INDEX);
+        return cps[index];
+    }
+
+    // ++++++++++++++++++
+    //   jikkou
+    // ++++++++++++++++++
+    private int[] getMainCode() throws JVMException {
+        FM_info[] methods = cfile.methods;
+        for(int i = 0; i < methods.length; i++) {
+            FM_info method = methods[i];
+            int index = method.name_index;
+            Cp_info cp = getConstantPool(index);
+            String s = cp.label;
+            if(s.equals("main"))
+                return method.attributes[0].code_attribute.code;
+        }
+        throw new JVMException(ECode.NO_MAIN_FUNC);
+    }
+
+    private void codeJikkou(int[] code) throws JVMException {
+        Stack stk = new Stack();
+        int index, i = 0;
+        while(i < code.length) {
+            System.out.println("VM loop ip=" + i + " op=" + code[i] +
+                               " stk_size=" + stk.size());
+            switch(code[i]) {
+            case 178: // getstatic 222
+                index = (code[i + 1] << 8) | code[i + 2];
+                i = i + 3;
+                Cp_info field_ref = getConstantPool(index);
+                if (field_ref.tag != CONSTANT_TAG.CONSTANT_Fieldref)
+                    throw new JVMException(ECode.NO_OPERAND);
+                Cp_info cls = getConstantPool(field_ref.class_index);
+                Cp_info name_and_type =
+                    getConstantPool(field_ref.name_and_type_index);
+
+                String cls_name = getConstantPool(cls.name_index).label;
+                String field_name =
+                    getConstantPool(name_and_type.name_index).label;
+                System.out.println("getstatic " + cls_name + " " + field_name);
+
+                try {
+                    Class c = Class.forName(cls_name.replaceAll("/", "."));
+                    System.out.println("getstatic " + c);
+                    Field f = c.getField(field_name);
+                    System.out.println("getstatic " + f);
+                    Object o = f.get(c);
+                    stk.push(o);
+                } catch (ClassNotFoundException e) {
+                    System.out.println("getstatic error " + e);
+                } catch (NoSuchFieldException e) {
+                    System.out.println("getstatic error " + e);
+                } catch (IllegalAccessException e) {
+                    System.out.println("getstatic error " + e);
+                }
+                break;
+            case 182: // invokevirtual 257
+                index = (code[i + 1] << 8) | code[i + 2];
+                i = i + 3;
+                break;
+            case 18:  // ldc 281
+                index = code[i + 1];
+                i = i + 2;
+                Cp_info cp = getConstantPool(index);
+                CONSTANT_TAG tag = cp.tag;
+                switch(tag) {
+                case CONSTANT_Integer:
+                case CONSTANT_Float:
+                case CONSTANT_String:
+                    break;
+                default:
+                    throw new JVMException(ECode.NO_OPERAND);
+                }
+                break;
+            case 177: // return 319
+                break;
+            default:
+                System.out.println(code[i]);
+                throw new JVMException(ECode.UNDEFINED_OP);
+            }
+        }
+    }
+
     public void jikkou() {
         try {
             if(!this.parsed_cfile)
                 throw new JVMException(ECode.NOT_INITIALIZED);
+            int[] code = getMainCode();
+            codeJikkou(code);
         } catch(JVMException e) {
             System.out.println(e);
         }
@@ -593,6 +688,6 @@ public class JVM {
         JVM jvm = new JVM("Hello.class");
         //JVM jvm = new JVM("TameikeSearch.class");
         jvm.classParser();
-        // jvm.jikkou();
+        jvm.jikkou();
     }
 }
