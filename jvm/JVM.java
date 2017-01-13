@@ -7,6 +7,7 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.nio.file.*;
 
 // ------------------------///
@@ -19,6 +20,7 @@ enum ECode {
     INVALID_MAGIC,
     INVALID_TAG_VALUE,
     CPOOL_ATTRIBUTE,
+    INVALID_UTF8,
     EMPTY_CODE_LENGTH;
 }
 
@@ -49,6 +51,9 @@ class JVMException extends Exception {
             break;
         case CPOOL_ATTRIBUTE:
             s = "reference to unknown constant_pool by attribute";
+            break;
+        case INVALID_UTF8:
+            s = "cannot convert bytes into utf8 codes";
             break;
         case EMPTY_CODE_LENGTH:
             s = "code length in CodeAttribute is Empty";
@@ -92,7 +97,7 @@ public class JVM {
     private String fname;
     private boolean state;
     private boolean parsed_cfile;
-    private int[] data;
+    private byte[] data;
     private int len;
     private int ptr;
 
@@ -107,14 +112,8 @@ public class JVM {
 
         try {
             Path src = Paths.get(fname);
-            byte[] tmp = Files.readAllBytes(src);
-            this.len = tmp.length;
-            int[] data = new int[tmp.length];
-            for(int i = 0; i < tmp.length; i++) {
-                int val = 0xFF & tmp[i];
-                data[i] = val;
-            }
-            this.data = data;
+            this.data = Files.readAllBytes(src);
+            this.len = this.data.length;
             this.state = true;
         } catch(OutOfMemoryError e) {
             System.out.println(e);
@@ -136,14 +135,8 @@ public class JVM {
         long high_bytes;
         long low_bytes;
         int descriptor_index;
-        int[] bytes_utf8;
+        String label;
 
-        public String valueOfbytes_utf8() {
-            StringBuilder s = new StringBuilder();
-            for(int i = 0; i < bytes_utf8.length; i++)
-                s.append((char)bytes_utf8[i]);
-            return s.toString();
-        }
         public String toString() {
             StringBuilder s = new StringBuilder();
             s.append(tag);
@@ -178,7 +171,7 @@ public class JVM {
                 s.append(descriptor_index);
                 break;
             case CONSTANT_Utf8:
-                s.append(valueOfbytes_utf8());
+                s.append(label);
                 break;
             }
             return s.append('}').toString();
@@ -336,15 +329,23 @@ public class JVM {
     private long read(int bsize) throws JVMException {
         int nptr = this.ptr + bsize;
         long val = 0;
-        if (this.len <= nptr - 1) {
+        if (this.len <= nptr - 1)
             throw new JVMException(ECode.INVALID_INDEX);
-        }
         for(int i = this.ptr; i < nptr; i++) {
-            int n = this.data[i];
+            byte b = this.data[i];
+            int n = 0xFF & b;
             val = (val << 8) | n;
         }
         this.ptr = nptr;
         return val;
+    }
+    private byte[] read_bytes(int bsize) throws JVMException {
+        int nptr = this.ptr + bsize;
+        byte[] b = new byte[bsize];
+        for(int i = this.ptr; i < nptr; i++)
+            b[i - this.ptr] = this.data[i];
+        this.ptr = nptr;
+        return b;
     }
     private int readU1() throws JVMException { return (int)read(1); }
     private int readU2() throws JVMException { return (int)read(2); }
@@ -397,8 +398,14 @@ public class JVM {
                 c.descriptor_index = readU2();
                 break;
             case CONSTANT_Utf8:
-                int length = readU2();
-                c.bytes_utf8 = readU1_n(length);
+                try {
+                    int length = readU2();
+                    byte[] utf8 = read_bytes(length);
+                    c.label = new String(utf8, "UTF-8");
+                    System.out.println(c.label);
+                } catch(UnsupportedEncodingException e) {
+                    throw new JVMException(ECode.INVALID_UTF8);
+                }
                 break;
             case UNKNOWN:
                 throw new JVMException(ECode.INVALID_TAG_VALUE);
@@ -492,7 +499,7 @@ public class JVM {
             Attribute_info a = new Attribute_info();
             a.attribute_name_index = name_index;
             int length = (int)readU4();
-            String s = cp.valueOfbytes_utf8();
+            String s = cp.label;
             a.name = s;
             if(s.equals("ConstantValue")) {
                 a.constantvalue_index = readU2();
