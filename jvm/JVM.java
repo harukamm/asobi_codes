@@ -77,17 +77,17 @@ class JVMException extends Exception {
 }
 
 enum CONSTANT_TAG {
-    CONSTANT_Class(7),
-    CONSTANT_Fieldref(9),
-    CONSTANT_Methodref(10),
-    CONSTANT_InterfaceMethodref(11),
-    CONSTANT_String(8),
-    CONSTANT_Integer(3),
-    CONSTANT_Float(4),
-    CONSTANT_Long(5),
-    CONSTANT_Double(6),
-    CONSTANT_NameAndType(12),
-    CONSTANT_Utf8(1),
+    Class(7),
+    Fieldref(9),
+    Methodref(10),
+    InterfaceMethodref(11),
+    String(8),
+    Integer(3),
+    Float(4),
+    Long(5),
+    Double(6),
+    NameAndType(12),
+    Utf8(1),
     UNKNOWN(-1);
     private int val;
     private CONSTANT_TAG(int val) { this.val = val; }
@@ -155,35 +155,35 @@ public class JVM {
             s.append(tag);
             s.append('{');
             switch(tag) {
-            case CONSTANT_Class:
+            case Class:
                 s.append(name_index);
                 break;
-            case CONSTANT_Fieldref:
-            case CONSTANT_Methodref:
-            case CONSTANT_InterfaceMethodref:
+            case Fieldref:
+            case Methodref:
+            case InterfaceMethodref:
                 s.append(class_index);
                 s.append(',');
                 s.append(name_and_type_index);
                 break;
-            case CONSTANT_String:
+            case String:
                 s.append(string_index);
                 break;
-            case CONSTANT_Integer:
-            case CONSTANT_Float:
+            case Integer:
+            case Float:
                 s.append(bytes);
                 break;
-            case CONSTANT_Long:
-            case CONSTANT_Double:
+            case Long:
+            case Double:
                 s.append(high_bytes);
                 s.append(',');
                 s.append(low_bytes);
                 break;
-            case CONSTANT_NameAndType:
+            case NameAndType:
                 s.append(name_index);
                 s.append(',');
                 s.append(descriptor_index);
                 break;
-            case CONSTANT_Utf8:
+            case Utf8:
                 s.append(label);
                 break;
             }
@@ -385,32 +385,32 @@ public class JVM {
             Cp_info c = new Cp_info();
             c.tag = tag;
             switch(tag) {
-            case CONSTANT_Class:
+            case Class:
                 c.name_index = readU2();
                 break;
-            case CONSTANT_Fieldref:
-            case CONSTANT_Methodref:
-            case CONSTANT_InterfaceMethodref:
+            case Fieldref:
+            case Methodref:
+            case InterfaceMethodref:
                 c.class_index = readU2();
                 c.name_and_type_index = readU2();
                 break;
-            case CONSTANT_String:
+            case String:
                 c.string_index = readU2();
                 break;
-            case CONSTANT_Integer:
-            case CONSTANT_Float:
+            case Integer:
+            case Float:
                 c.bytes = readU4();
                 break;
-            case CONSTANT_Long:
-            case CONSTANT_Double:
+            case Long:
+            case Double:
                 c.high_bytes = readU4();
                 c.low_bytes = readU4();
                 break;
-            case CONSTANT_NameAndType:
+            case NameAndType:
                 c.name_index = readU2();
                 c.descriptor_index = readU2();
                 break;
-            case CONSTANT_Utf8:
+            case Utf8:
                 try {
                     int length = readU2();
                     byte[] utf8 = read_bytes(length);
@@ -502,7 +502,7 @@ public class JVM {
         for(int i = 0; i < size; i++) {
             int name_index = readU2();
             Cp_info cp = getConstantPool(name_index);
-            if(cp.tag != CONSTANT_TAG.CONSTANT_Utf8) {
+            if(cp.tag != CONSTANT_TAG.Utf8) {
                 throw new JVMException(ECode.CPOOL_ATTRIBUTE);
             }
             Attribute_info a = new Attribute_info();
@@ -620,7 +620,7 @@ public class JVM {
                 index = (code[i + 1] << 8) | code[i + 2];
                 i = i + 3;
                 Cp_info field_ref = getConstantPool(index);
-                if (field_ref.tag != CONSTANT_TAG.CONSTANT_Fieldref)
+                if (field_ref.tag != CONSTANT_TAG.Fieldref)
                     throw new JVMException(ECode.NO_OPERAND);
                 Cp_info cls = getConstantPool(field_ref.class_index);
                 Cp_info name_and_type =
@@ -656,9 +656,9 @@ public class JVM {
                 Cp_info cp = getConstantPool(index);
                 CONSTANT_TAG tag = cp.tag;
                 switch(tag) {
-                case CONSTANT_Integer:
-                case CONSTANT_Float:
-                case CONSTANT_String:
+                case Integer:
+                case Float:
+                case String:
                     break;
                 default:
                     throw new JVMException(ECode.NO_OPERAND);
