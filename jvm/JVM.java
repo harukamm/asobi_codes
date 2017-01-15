@@ -2,30 +2,35 @@
 // $ java -'Dfile.encoding=ISO8859_1' JVM
 // $ javac -J-'Dfile.encoding=UTF8' JVM.java
 // $ javap -v Hello.class
-import java.util.Arrays;
-import java.util.Stack;
+/* import java.util.Arrays;
+   import java.util.Stack; */
+import java.util.*;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.file.*;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.InvocationTargetException;
 
 // ------------------------///
 //  Exception for JVM
 // ------------------------///
 enum ECode {
-    NOT_INITIALIZED,
+    ASSERT_ERROR,
+    CPOOL_ATTRIBUTE,
+    EMPTY_CODE_LENGTH,
+    INVALID_CPOOL_INDEX,
     INVALID_INDEX,
     INVALID_MAGIC,
     INVALID_TAG_VALUE,
-    CPOOL_ATTRIBUTE,
     INVALID_UTF8,
-    INVALID_CPOOL_INDEX,
-    EMPTY_CODE_LENGTH,
+    NOT_INITIALIZED,
     NO_MAIN_FUNC,
-    UNDEFINED_OP,
-    NO_OPERAND;
+    OPERAND_ERROR,
+    TYPEF_ERROR,
+    UNDEFINED_OP;
 }
 
 class JVMException extends Exception {
@@ -38,8 +43,17 @@ class JVMException extends Exception {
     public String getMessage() {
         String s = "";
         switch(this.code) {
-        case NOT_INITIALIZED:
-            s = "Not initialized class file data.";
+        case ASSERT_ERROR:
+            s = "assertion error";
+            break;
+        case CPOOL_ATTRIBUTE:
+            s = "reference to unknown constant_pool by attribute";
+            break;
+        case EMPTY_CODE_LENGTH:
+            s = "code length in CodeAttribute is Empty";
+            break;
+        case INVALID_CPOOL_INDEX:
+            s = "reference to non-exists constant-pool";
             break;
         case INVALID_INDEX:
             s = "Parser failed. (out of index)";
@@ -50,26 +64,23 @@ class JVMException extends Exception {
         case INVALID_TAG_VALUE:
             s = "tag value is not correct.";
             break;
-        case INVALID_CPOOL_INDEX:
-            s = "reference to non-exists constant-pool";
-            break;
-        case CPOOL_ATTRIBUTE:
-            s = "reference to unknown constant_pool by attribute";
-            break;
         case INVALID_UTF8:
             s = "cannot convert bytes into utf8 codes";
             break;
-        case EMPTY_CODE_LENGTH:
-            s = "code length in CodeAttribute is Empty";
+        case NOT_INITIALIZED:
+            s = "Not initialized class file data.";
             break;
         case NO_MAIN_FUNC:
             s = "There is no main function";
             break;
+        case OPERAND_ERROR:
+            s = "No valid operand";
+            break;
+        case TYPEF_ERROR:
+            s = "Type format error";
+            break;
         case UNDEFINED_OP:
             s = "Operator is undefined yet";
-            break;
-        case NO_OPERAND:
-            s = "No valid operand";
             break;
         }
         return s;
@@ -608,11 +619,88 @@ public class JVM {
         }
         throw new JVMException(ECode.NO_MAIN_FUNC);
     }
+    
+    private Class[] getClassesByFType(String s) throws JVMException {
+        if(s.charAt(0) != '(')
+            throw new JVMException(ECode.TYPEF_ERROR);
+        List<Class> clst = new ArrayList<Class>();
+        int length = s.length();
+        int i = 1;
+        while(i < length) {
+            char c = s.charAt(i);
+            if(c == ')')
+                break;
+
+            switch (c) {
+            case 'B':
+                clst.add(byte.class);
+                break;
+            case 'C':
+                clst.add(char.class);
+                break;
+            case 'D':
+                clst.add(double.class);
+                break;
+            case 'F':
+                clst.add(float.class);
+                break;
+            case 'I':
+                clst.add(int.class);
+                break;
+            case 'J':
+                clst.add(long.class);
+                break;
+            case 'S':
+                clst.add(short.class);
+                break;
+            case 'Z':
+                clst.add(boolean.class);
+                break;
+            case 'L':
+                try {
+                    int n = i + 1;
+                    while(s.charAt(i) != ';')
+                        i++;
+                    String className = s.substring(n, i);
+                    Class cls = Class.forName(className.replaceAll("/", "."));
+                    clst.add(cls);
+                } catch(ClassNotFoundException e) {
+                    throw new JVMException(ECode.TYPEF_ERROR);
+                }
+                break;
+            case '[':
+                try {
+                    int n = i;
+                    while(s.charAt(i) == '[')
+                        i++;
+                    if(s.charAt(i) == 'L') {
+                        while(s.charAt(i) != ';')
+                            i++;
+                    } else {
+                        i++;
+                    }
+                    String className = s.substring(n, i);
+                    Class cls = Class.forName(className.replaceAll("/", "."));
+                    clst.add(cls);
+                } catch(ClassNotFoundException e) {
+                    throw new JVMException(ECode.TYPEF_ERROR);
+                }
+            }
+            i++;
+        }
+        return clst.toArray(new Class[clst.size()]);
+    }
+
+    private void assertEq(Object a, Object b) throws JVMException {
+        if(a != b)
+            throw new JVMException(ECode.ASSERT_ERROR);
+    }
 
     private void codeJikkou(int[] code) throws JVMException {
         Stack stk = new Stack();
         int index, i = 0;
-        while(i < code.length) {
+        int length = code.length;
+        while(i < length) {
             System.out.println("VM loop ip=" + i + " op=" + code[i] +
                                " stk_size=" + stk.size());
             switch(code[i]) {
@@ -620,35 +708,84 @@ public class JVM {
                 index = (code[i + 1] << 8) | code[i + 2];
                 i = i + 3;
                 Cp_info field_ref = getConstantPool(index);
-                if (field_ref.tag != CONSTANT_TAG.Fieldref)
-                    throw new JVMException(ECode.NO_OPERAND);
+                assertEq(field_ref.tag, CONSTANT_TAG.Fieldref);
                 Cp_info cls = getConstantPool(field_ref.class_index);
+                assertEq(cls.tag, CONSTANT_TAG.Class);
                 Cp_info name_and_type =
                     getConstantPool(field_ref.name_and_type_index);
+                assertEq(name_and_type.tag, CONSTANT_TAG.NameAndType);
+                Cp_info cls_desc = getConstantPool(cls.name_index);
+                assertEq(cls_desc.tag, CONSTANT_TAG.Utf8);
+                String cls_name = cls_desc.label;
+                Cp_info field_desc = getConstantPool(name_and_type.name_index);
+                assertEq(field_desc.tag, CONSTANT_TAG.Utf8);
+                String field_name = field_desc.label;
 
-                String cls_name = getConstantPool(cls.name_index).label;
-                String field_name =
-                    getConstantPool(name_and_type.name_index).label;
-                System.out.println("getstatic " + cls_name + " " + field_name);
-
+                System.out.println("[getstatic] " + cls_name + ", " + field_name);
                 try {
                     Class c = Class.forName(cls_name.replaceAll("/", "."));
-                    System.out.println("getstatic " + c);
                     Field f = c.getField(field_name);
-                    System.out.println("getstatic " + f);
+                    System.out.println("[getstatic] " + c + ", " + f);
+                    // // import java.lang.reflect.Modifier;
+                    // Modifier.isStatic(f.getModifiers())
                     Object o = f.get(c);
+                    System.out.println(o);
                     stk.push(o);
                 } catch (ClassNotFoundException e) {
-                    System.out.println("getstatic error " + e);
+                    System.out.println("[getstatic] error " + e);
                 } catch (NoSuchFieldException e) {
-                    System.out.println("getstatic error " + e);
+                    System.out.println("[getstatic] error " + e);
                 } catch (IllegalAccessException e) {
-                    System.out.println("getstatic error " + e);
+                    System.out.println("[getstatic] error " + e);
                 }
                 break;
             case 182: // invokevirtual 257
                 index = (code[i + 1] << 8) | code[i + 2];
                 i = i + 3;
+                Cp_info method_ref = getConstantPool(index);
+                assertEq(method_ref.tag, CONSTANT_TAG.Methodref);
+                Cp_info cls2 = getConstantPool(method_ref.class_index);
+                assertEq(cls2.tag, CONSTANT_TAG.Class);
+                Cp_info name_and_type2 =
+                    getConstantPool(method_ref.name_and_type_index);
+                assertEq(name_and_type2.tag, CONSTANT_TAG.NameAndType);
+                Cp_info cls_desc2 = getConstantPool(cls2.name_index);
+                assertEq(cls_desc2.tag, CONSTANT_TAG.Utf8);
+                String cls_name2 = cls_desc2.label;
+                Cp_info method_desc = getConstantPool(name_and_type2.name_index);
+                assertEq(method_desc.tag, CONSTANT_TAG.Utf8);
+                String method_name = method_desc.label;
+                Cp_info method_desc2 = getConstantPool(name_and_type2.descriptor_index);
+                assertEq(method_desc2.tag, CONSTANT_TAG.Utf8);
+                String method_type = method_desc2.label;
+                System.out.println("[invokevirtual] " +
+                                   cls_name2 + " " + method_name + " " + method_type);
+                try {
+                    Class c = Class.forName(cls_name2.replaceAll("/", "."));
+                    Class[] args_clss = getClassesByFType(method_type);
+                    Method m = c.getMethod(method_name, args_clss);
+                    System.out.println("[invokevirtual] " + c + ", " + m);
+
+                    int argc = args_clss.length;
+                    Object[] args = new Object[argc];
+                    for(int k = argc - 1; 0 <= k; k--) {
+                        Object o1 = stk.pop();
+                        Class c1 = args_clss[k];
+                        if(!c1.equals(o1.getClass()))
+                            throw new JVMException(ECode.OPERAND_ERROR);
+                        args[k] = o1;
+                    }
+                    Object mobj = stk.pop();
+                    m.invoke(mobj, args);
+                } catch (ClassNotFoundException e) {
+                    System.out.println("[invokevirtual] error " + e);
+                } catch (NoSuchMethodException e) {
+                    System.out.println("[invokevirtual] error " + e);
+                } catch (IllegalAccessException e) {
+                    System.out.println("[invokevirtual] error " + e);
+                } catch (InvocationTargetException e) {
+                System.out.println("[invokevirtual] error " + e);
+                }
                 break;
             case 18:  // ldc 281
                 index = code[i + 1];
@@ -657,14 +794,44 @@ public class JVM {
                 CONSTANT_TAG tag = cp.tag;
                 switch(tag) {
                 case Integer:
-                case Float:
+                    long val = cp.bytes;
+                    System.out.println("[ldc] " + val);
+                    stk.push(val);
+                    break;
+                    /* case Float:
+                       long bits = cp.bytes;
+                       float f;
+                       if(bits == 0x7f800000)
+                       f = Float.POSITIVE_INFINITY;
+                       else if(bits == 0xff800000)
+                       f = Float.NEGATIVE_INFINITY;
+                       else if((0x7f800001 <= bits && bits <= 0x7fffffff) ||
+                       (0xff800001 <= bits && bits <= 0xffffffff))
+                       f = Float.NaN;
+                       else {
+                       int s = (((int)(bits >> 31)) == 0) ? 1 : -1;
+                       int e = ((int)(bits >> 23)) & 0xff;
+                       int m = (e == 0) ?
+                       (bits & 0x7fffff) << 1 : (bits & 0x7fffff) | 0x800000;
+                       f = s * m * (float)Math.pow(2, e - 150);
+                       }
+                       System.out.println("[ldc] " + f);
+                       stk.push(f);
+                       break;*/
                 case String:
+                    Cp_info string_desc = getConstantPool(cp.string_index);
+                    assertEq(string_desc.tag, CONSTANT_TAG.Utf8);
+                    System.out.println("[ldc] " + string_desc.label);
+                    stk.push(string_desc.label);
                     break;
                 default:
-                    throw new JVMException(ECode.NO_OPERAND);
+                    throw new JVMException(ECode.OPERAND_ERROR);
                 }
                 break;
             case 177: // return 319
+                i++;
+                if(i == length - 1)
+                    throw new JVMException(ECode.OPERAND_ERROR);
                 break;
             default:
                 System.out.println(code[i]);
