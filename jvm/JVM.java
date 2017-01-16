@@ -2,7 +2,7 @@
 // $ java -'Dfile.encoding=ISO8859_1' JVM
 // $ javac -J-'Dfile.encoding=UTF8' JVM.java
 // $ javap -v Hello.class
-/* import java.util.Arrays;
+/* import java.MyUtil.arrays_
    import java.util.Stack; */
 import java.util.*;
 import java.io.File;
@@ -87,6 +87,9 @@ class JVMException extends Exception {
     }
 }
 
+// ------------------------///
+//  Structure for jvm
+// ------------------------///
 enum CONSTANT_TAG {
     Class(7),
     Fieldref(9),
@@ -112,12 +115,210 @@ enum CONSTANT_TAG {
     }
 }
 
+class Cp_info {
+    CONSTANT_TAG tag;
+    int name_index;
+    int class_index;
+    int name_and_type_index;
+    int string_index;
+    long bytes;
+    long high_bytes;
+    long low_bytes;
+    int descriptor_index;
+    String label;
+
+    public String toString() {
+        StringBuilder s = new StringBuilder();
+        s.append(tag);
+        s.append('{');
+        switch(tag) {
+        case Class:
+            s.append(name_index);
+            break;
+        case Fieldref:
+        case Methodref:
+        case InterfaceMethodref:
+            s.append(class_index);
+            s.append(',');
+            s.append(name_and_type_index);
+            break;
+        case String:
+            s.append(string_index);
+            break;
+        case Integer:
+        case Float:
+            s.append(bytes);
+            break;
+        case Long:
+        case Double:
+            s.append(high_bytes);
+            s.append(',');
+            s.append(low_bytes);
+            break;
+        case NameAndType:
+            s.append(name_index);
+            s.append(',');
+            s.append(descriptor_index);
+            break;
+        case Utf8:
+            s.append(label);
+            break;
+        }
+        return s.append('}').toString();
+    }
+}
+
+// Attribute
+class Exception_info {
+    int start_pc;
+    int end_pc;
+    int handler_pc;
+    int catch_type;
+    public String toString() {
+        return "{" + start_pc + ", " + end_pc + ", " + handler_pc +
+            ", " + catch_type + "}";
+    }
+}
+class Class_info {
+    int inner_class_info_index;
+    int outer_class_info_index;
+    int inner_name_index;
+    int inner_class_access_flags;
+    public String toString() {
+        return "{" + inner_class_info_index + ", " +
+            outer_class_info_index + ", " + inner_name_index + ", " +
+            inner_class_access_flags + "}";
+    }
+}
+class LineNumber_info {
+    int start_pc;
+    int line_number;
+    public String toString() {
+        return "{" + start_pc + ", " + line_number + "}";
+    }
+}
+class LocalVariable_info {
+    int start_pc;
+    int length;
+    int name_index;
+    int descriptor_index;
+    int index;
+    public String toString() {
+        return "{" + start_pc + ", " + length + ", " + name_index + ", " +
+            descriptor_index + ", " + index + "}";
+    }
+}
+
+class CodeAttribute {
+    int max_stack;
+    int max_locals;
+    int[] code;
+    Exception_info[] exception_table;
+    Attribute_info[] attributes;
+    public String toString() {
+        return "{" + max_stack + ", " + max_locals + ", code: " +
+            Arrays.toString(code) + ", exception_table:" +
+            Arrays.toString(exception_table) + ", attributes: " +
+            MyUtil.arrays_toString(attributes) + "}";
+    }
+}
+
+class Attribute_info {
+    String name;
+    int attribute_name_index;
+    int constantvalue_index;
+    CodeAttribute code_attribute;
+    int[] exception_index_table;
+    Class_info[] classes;
+    int sourcefile_index;
+    LineNumber_info[] line_number_table;
+    LocalVariable_info[] local_variable_table;
+    int[] others;
+    /* "ConstantValue" "Code" "Exception":
+       "InnerClasses" "Synthetic" "Deprecated"
+       "SourceFile" "LineNumberTable" "LocalVariableTable" */
+    public String toString() {
+        String s = "_";
+        switch(name) {
+        case "ConstantValue":
+            s = String.valueOf(constantvalue_index);
+            break;
+        case "Code":
+            s = code_attribute.toString();
+            break;
+        case "Exception":
+            s = Arrays.toString(exception_index_table);
+        case "InnerClasses":
+            s = Arrays.toString(classes);
+        case "SourceFile":
+            s = String.valueOf(sourcefile_index);
+            break;
+        case "LineNumberTable":
+            s = Arrays.toString(line_number_table);
+            break;
+        case "LocalVariableTable":
+            s = Arrays.toString(local_variable_table);
+            break;
+        }
+        return name + "Attribute{attribute_name_index: " +
+            attribute_name_index + ", " + s + "}";
+    }
+}
+
+// field_info, method_info
+class FM_info {
+    int access_flags;
+    int name_index;
+    int descriptor_index;
+    Attribute_info[] attributes;
+
+    @Override
+    public String toString() {
+        return ("FM_info{" + access_flags + ", " + name_index + ", " +
+                descriptor_index + ", attributes:" +
+                MyUtil.arrays_toString(attributes) + "}");
+    }
+}
+
+class ClassFile {
+    long magic;
+    int minor_version;
+    int major_version;
+    int constant_pool_count;
+    Cp_info[] constant_pool;
+    int access_flags;
+    int this_class;
+    int super_class;
+    int[] interfaces;
+    FM_info[] fields;
+    FM_info[] methods;
+    Attribute_info[] attributes;
+
+    private String t(String s) { return "\n\t" + s + ": "; }
+    public void print() {
+        StringBuilder s = new StringBuilder();
+        s.append("ClassFile {");
+        s.append(t("magic") + magic);
+        s.append(t("minor_version") + minor_version);
+        s.append(t("major_version") + major_version);
+        s.append(t("counstant_pool_count") + constant_pool_count);
+        s.append(t("counstant_pool") + MyUtil.arrays_toString(constant_pool));
+        s.append(t("access_flags") + access_flags);
+        s.append(t("this_class") + this_class);
+        s.append(t("super_class") + super_class);
+        s.append(t("interfaces") + MyUtil.arrays_toString(interfaces));
+        s.append(t("fields") + MyUtil.arrays_toString(fields));
+        s.append(t("methods") + MyUtil.arrays_toString(methods));
+        s.append(t("attributes") + MyUtil.arrays_toString(attributes));
+        s.append("\n}");
+        System.out.println(s);
+    }
+}
+
 // ------------------------///
 //   JVM main
 // ------------------------///
 public class JVM {
-    private static Util util;
-
     private String fname;
     private boolean state;
     private boolean parsed_cfile;
@@ -132,7 +333,6 @@ public class JVM {
         this.ptr = 0;
         this.state = false;
         this.parsed_cfile = false;
-        this.util = new Util();
 
         try {
             Path src = Paths.get(fname);
@@ -143,209 +343,6 @@ public class JVM {
             System.out.println(e);
         } catch(IOException e) {
             System.out.println(e);
-        }
-    }
-
-    // ------------------------///
-    //  Structure for jvm
-    // ------------------------///
-    class Cp_info {
-        CONSTANT_TAG tag;
-        int name_index;
-        int class_index;
-        int name_and_type_index;
-        int string_index;
-        long bytes;
-        long high_bytes;
-        long low_bytes;
-        int descriptor_index;
-        String label;
-
-        public String toString() {
-            StringBuilder s = new StringBuilder();
-            s.append(tag);
-            s.append('{');
-            switch(tag) {
-            case Class:
-                s.append(name_index);
-                break;
-            case Fieldref:
-            case Methodref:
-            case InterfaceMethodref:
-                s.append(class_index);
-                s.append(',');
-                s.append(name_and_type_index);
-                break;
-            case String:
-                s.append(string_index);
-                break;
-            case Integer:
-            case Float:
-                s.append(bytes);
-                break;
-            case Long:
-            case Double:
-                s.append(high_bytes);
-                s.append(',');
-                s.append(low_bytes);
-                break;
-            case NameAndType:
-                s.append(name_index);
-                s.append(',');
-                s.append(descriptor_index);
-                break;
-            case Utf8:
-                s.append(label);
-                break;
-            }
-            return s.append('}').toString();
-        }
-    }
-
-    // Attribute
-    class Exception_info {
-        int start_pc;
-        int end_pc;
-        int handler_pc;
-        int catch_type;
-        public String toString() {
-            return "{" + start_pc + ", " + end_pc + ", " + handler_pc +
-                ", " + catch_type + "}";
-        }
-    }
-    class Class_info {
-        int inner_class_info_index;
-        int outer_class_info_index;
-        int inner_name_index;
-        int inner_class_access_flags;
-        public String toString() {
-            return "{" + inner_class_info_index + ", " +
-                outer_class_info_index + ", " + inner_name_index + ", " +
-                inner_class_access_flags + "}";
-        }
-    }
-    class LineNumber_info {
-        int start_pc;
-        int line_number;
-        public String toString() {
-            return "{" + start_pc + ", " + line_number + "}";
-        }
-    }
-    class LocalVariable_info {
-        int start_pc;
-        int length;
-        int name_index;
-        int descriptor_index;
-        int index;
-        public String toString() {
-            return "{" + start_pc + ", " + length + ", " + name_index + ", " +
-                descriptor_index + ", " + index + "}";
-        }
-    }
-
-    class CodeAttribute {
-        int max_stack;
-        int max_locals;
-        int[] code;
-        Exception_info[] exception_table;
-        Attribute_info[] attributes;
-        public String toString() {
-            return "{" + max_stack + ", " + max_locals + ", code: " +
-                Arrays.toString(code) + ", exception_table:" +
-                Arrays.toString(exception_table) + ", attributes: " +
-                util.Arrays.toString(attributes) + "}";
-        }
-    }
-
-    class Attribute_info {
-        String name;
-        int attribute_name_index;
-        int constantvalue_index;
-        CodeAttribute code_attribute;
-        int[] exception_index_table;
-        Class_info[] classes;
-        int sourcefile_index;
-        LineNumber_info[] line_number_table;
-        LocalVariable_info[] local_variable_table;
-        int[] others;
-        /* "ConstantValue" "Code" "Exception":
-           "InnerClasses" "Synthetic" "Deprecated"
-           "SourceFile" "LineNumberTable" "LocalVariableTable" */
-        public String toString() {
-            String s = "_";
-            switch(name) {
-            case "ConstantValue":
-                s = String.valueOf(constantvalue_index);
-                break;
-            case "Code":
-                s = code_attribute.toString();
-                break;
-            case "Exception":
-                s = Arrays.toString(exception_index_table);
-            case "InnerClasses":
-                s = Arrays.toString(classes);
-            case "SourceFile":
-                s = String.valueOf(sourcefile_index);
-                break;
-            case "LineNumberTable":
-                s = Arrays.toString(line_number_table);
-                break;
-            case "LocalVariableTable":
-                s = Arrays.toString(local_variable_table);
-                break;
-            }
-            return name + "Attribute{attribute_name_index: " +
-                attribute_name_index + ", " + s + "}";
-        }
-    }
-
-    // field_info, method_info
-    class FM_info {
-        int access_flags;
-        int name_index;
-        int descriptor_index;
-        Attribute_info[] attributes;
-
-        @Override
-        public String toString() {
-            return ("FM_info{" + access_flags + ", " + name_index + ", " +
-                    descriptor_index + ", attributes:" +
-                    util.Arrays.toString(attributes) + "}");
-        }
-    }
-
-    class ClassFile {
-        long magic;
-        int minor_version;
-        int major_version;
-        int constant_pool_count;
-        Cp_info[] constant_pool;
-        int access_flags;
-        int this_class;
-        int super_class;
-        int[] interfaces;
-        FM_info[] fields;
-        FM_info[] methods;
-        Attribute_info[] attributes;
-
-        private String t(String s) { return "\n\t" + s + ": "; }
-        public void print() {
-            StringBuilder s = new StringBuilder();
-            s.append("ClassFile {");
-            s.append(t("magic") + magic);
-            s.append(t("minor_version") + minor_version);
-            s.append(t("major_version") + major_version);
-            s.append(t("counstant_pool_count") + constant_pool_count);
-            s.append(t("counstant_pool") + util.Arrays.toString(constant_pool));
-            s.append(t("access_flags") + access_flags);
-            s.append(t("this_class") + this_class);
-            s.append(t("super_class") + super_class);
-            s.append(t("interfaces") + util.Arrays.toString(interfaces));
-            s.append(t("fields") + util.Arrays.toString(fields));
-            s.append(t("methods") + util.Arrays.toString(methods));
-            s.append(t("attributes") + util.Arrays.toString(attributes));
-            s.append("\n}");
-            System.out.println(s);
         }
     }
 
@@ -784,7 +781,7 @@ public class JVM {
                 } catch (IllegalAccessException e) {
                     System.out.println("[invokevirtual] error " + e);
                 } catch (InvocationTargetException e) {
-                System.out.println("[invokevirtual] error " + e);
+                    System.out.println("[invokevirtual] error " + e);
                 }
                 break;
             case 18:  // ldc 281
