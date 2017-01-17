@@ -423,7 +423,6 @@ public class JVM {
                     int length = readU2();
                     byte[] utf8 = read_bytes(length);
                     c.label = new String(utf8, "UTF-8");
-                    System.out.println(c.label);
                 } catch(UnsupportedEncodingException e) {
                     throw new JVMException(ECode.INVALID_UTF8);
                 }
@@ -566,6 +565,7 @@ public class JVM {
             cfile = new ClassFile();
             long magic = readU4();
             if(magic != 0xcafebabeL) {
+                System.out.println(magic);
                 throw new JVMException(ECode.INVALID_MAGIC);
             }
             cfile.magic = magic;
@@ -701,6 +701,18 @@ public class JVM {
             System.out.println("VM loop ip=" + i + " op=" + code[i] +
                                " stk_size=" + stk.size());
             switch(code[i]) {
+            case 2:
+            case 3:
+            case 4:
+            case 5:
+            case 6:
+            case 7:
+            case 8:
+                int n = code[i] - 3;
+                System.out.println("[iconst_" + n + "]");
+                i++;
+                stk.push(n);
+                break;
             case 178: // getstatic 222
                 index = (code[i + 1] << 8) | code[i + 2];
                 i = i + 3;
@@ -849,7 +861,8 @@ public class JVM {
     }
 
     public static void main(String[] args) {
-        JVM jvm = new JVM("Hello.class");
+        //JVM jvm = new JVM("Hello.class");
+        JVM jvm = new JVM("Calc.class");
         //JVM jvm = new JVM("TameikeSearch.class");
         jvm.classParser();
         jvm.jikkou();
