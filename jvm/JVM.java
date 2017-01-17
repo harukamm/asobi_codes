@@ -18,9 +18,9 @@ import java.lang.reflect.InvocationTargetException;
 //  Exception for JVM
 // ------------------------///
 enum ECode {
+    ATTRIBUTE_ERROR,
     ASSERT_ERROR,
-    CPOOL_ATTRIBUTE,
-    EMPTY_CODE_LENGTH,
+    FRAME_STACK,
     INVALID_CPOOL_INDEX,
     INVALID_INDEX,
     INVALID_MAGIC,
@@ -43,14 +43,14 @@ class JVMException extends Exception {
     public String getMessage() {
         String s = "";
         switch(this.code) {
+        case ATTRIBUTE_ERROR:
+            s = "attribute error";
+            break;
         case ASSERT_ERROR:
             s = "assertion error";
             break;
-        case CPOOL_ATTRIBUTE:
-            s = "reference to unknown constant_pool by attribute";
-            break;
-        case EMPTY_CODE_LENGTH:
-            s = "code length in CodeAttribute is Empty";
+        case FRAME_STACK:
+            s = "frame stack error";
             break;
         case INVALID_CPOOL_INDEX:
             s = "reference to non-exists constant-pool";
@@ -194,7 +194,7 @@ class LineNumber_info {
     int start_pc;
     int line_number;
     public String toString() {
-        return "{" + start_pc + ", " + line_number + "}";
+        return "{" + line_number + ": " + start_pc + "}";
     }
 }
 class LocalVariable_info {
@@ -492,7 +492,7 @@ public class JVM {
         ca.max_locals = readU2();
         long code_length = readU4();
         if(code_length <= 0)
-            throw new JVMException(ECode.EMPTY_CODE_LENGTH);
+            throw new JVMException(ECode.ATTRIBUTE_ERROR);
         ca.code = readU1_n((int)code_length);
 
         int ext_length = readU2();
@@ -510,7 +510,7 @@ public class JVM {
             int name_index = readU2();
             Cp_info cp = getConstantPool(name_index);
             if(cp.tag != CONSTANT_TAG.Utf8) {
-                throw new JVMException(ECode.CPOOL_ATTRIBUTE);
+                throw new JVMException(ECode.INVALID_CPOOL_INDEX);
             }
             Attribute_info a = new Attribute_info();
             a.attribute_name_index = name_index;
@@ -604,7 +604,7 @@ public class JVM {
     // ++++++++++++++++++
     //   jikkou
     // ++++++++++++++++++
-    private int[] getMainCode() throws JVMException {
+    private FM_info getMain() throws JVMException {
         FM_info[] methods = cfile.methods;
         for(int i = 0; i < methods.length; i++) {
             FM_info method = methods[i];
@@ -612,7 +612,7 @@ public class JVM {
             Cp_info cp = getConstantPool(index);
             String s = cp.label;
             if(s.equals("main"))
-                return method.attributes[0].code_attribute.code;
+                return method;
         }
         throw new JVMException(ECode.NO_MAIN_FUNC);
     }
@@ -693,25 +693,61 @@ public class JVM {
             throw new JVMException(ECode.ASSERT_ERROR);
     }
 
-    private void codeJikkou(int[] code) throws JVMException {
+    private Attribute_info search(Attribute_info[] as, String s) throws JVMException {
+        for(int i = 0; i < as.length; i++) {
+            Attribute_info a = as[i];
+            if(s.equals(a.name))
+                return a;
+        }
+        throw new JVMException(ECode.ATTRIBUTE_ERROR);
+    }
+
+    private void codeJikkou(CodeAttribute ca) throws JVMException {
         Stack stk = new Stack();
-        int index, i = 0;
+        Stack stk_frame = new Stack();
+        int max_stack = ca.max_stack;
+        int max_locals = ca.max_locals;
+        stk_frame.push(new Object[max_locals]);
+        Attribute_info lineNumberAttr =
+            search(ca.attributes, "LineNumberTable");
+        int n, index, i = 0;
+        Object o;
+        int[] code = ca.code;
         int length = code.length;
         while(i < length) {
             System.out.println("VM loop ip=" + i + " op=" + code[i] +
                                " stk_size=" + stk.size());
             switch(code[i]) {
-            case 2:
+            case 2: // iconst_i
             case 3:
             case 4:
             case 5:
             case 6:
             case 7:
             case 8:
-                int n = code[i] - 3;
-                System.out.println("[iconst_" + n + "]");
+                n = code[i] - 3;
                 i++;
+                System.out.println("[iconst_" + n + "]");
                 stk.push(n);
+                break;
+            case 59: // istore
+            case 60:
+            case 61:
+            case 62:
+                n = code[i] - 59;
+                i++;
+                o = stk.pop();
+                if(o.getClass().equals(Integer.class)) {
+                    Integer value = (Integer)o;
+                    Object[] objs = (Object[])stk_frame.pop();
+                    if(objs.length <= n)
+                        throw new JVMException(ECode.FRAME_STACK);
+                    objs[n] = value;
+                    System.out.println("[istore_" + n + "] " + value);
+                    stk_frame.push(objs);
+                } else {
+                    throw new JVMException(ECode.OPERAND_ERROR);
+                }
                 break;
             case 178: // getstatic 222
                 index = (code[i + 1] << 8) | code[i + 2];
@@ -735,9 +771,7 @@ public class JVM {
                     Class c = Class.forName(cls_name.replaceAll("/", "."));
                     Field f = c.getField(field_name);
                     System.out.println("[getstatic] " + c + ", " + f);
-                    // // import java.lang.reflect.Modifier;
-                    // Modifier.isStatic(f.getModifiers())
-                    Object o = f.get(c);
+                    o = f.get(c);
                     System.out.println(o);
                     stk.push(o);
                 } catch (ClassNotFoundException e) {
@@ -853,8 +887,9 @@ public class JVM {
         try {
             if(!this.parsed_cfile)
                 throw new JVMException(ECode.NOT_INITIALIZED);
-            int[] code = getMainCode();
-            codeJikkou(code);
+            FM_info main = getMain();
+            CodeAttribute ca = main.attributes[0].code_attribute;
+            codeJikkou(ca);
         } catch(JVMException e) {
             System.out.println(e);
         }
