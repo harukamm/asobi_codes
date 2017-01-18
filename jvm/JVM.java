@@ -689,8 +689,10 @@ public class JVM {
     }
 
     private void assertEq(Object a, Object b) throws JVMException {
-        if(a != b)
+        if(!a.equals(b)) {
+            System.out.println("expect " + a + " = " + b);
             throw new JVMException(ECode.ASSERT_ERROR);
+        }
     }
 
     private Attribute_info search(Attribute_info[] as, String s) throws JVMException {
@@ -737,17 +739,33 @@ public class JVM {
                 n = code[i] - 59;
                 i++;
                 o = stk.pop();
-                if(o.getClass().equals(Integer.class)) {
-                    Integer value = (Integer)o;
-                    Object[] objs = (Object[])stk_frame.pop();
-                    if(objs.length <= n)
-                        throw new JVMException(ECode.FRAME_STACK);
-                    objs[n] = value;
-                    System.out.println("[istore_" + n + "] " + value);
-                    stk_frame.push(objs);
-                } else {
+                if(!o.getClass().equals(Integer.class))
                     throw new JVMException(ECode.OPERAND_ERROR);
-                }
+
+                Integer value = (Integer)o;
+                Object[] objs = (Object[])stk_frame.pop();
+                if(objs.length <= n)
+                    throw new JVMException(ECode.FRAME_STACK);
+                objs[n] = value;
+                System.out.println("[istore_" + n + "] " + value);
+                stk_frame.push(objs);
+                break;
+            case 26: // iload
+            case 27:
+            case 28:
+            case 29:
+                n = code[i] - 26;
+                i++;
+                objs = (Object[])stk_frame.pop();
+                if(objs.length <= n)
+                    throw new JVMException(ECode.FRAME_STACK);
+                o = objs[n];
+                if(!o.getClass().equals(Integer.class))
+                    throw new JVMException(ECode.OPERAND_ERROR);
+                value = (Integer)o;
+                System.out.println("[iload_" + n + "] " + value);
+                stk_frame.push(objs);
+                stk.push(value);
                 break;
             case 178: // getstatic 222
                 index = (code[i + 1] << 8) | code[i + 2];
@@ -806,16 +824,17 @@ public class JVM {
                 try {
                     Class c = Class.forName(cls_name2.replaceAll("/", "."));
                     Class[] args_clss = getClassesByFType(method_type);
+                    System.out.println("[invokevirtual " +
+                                       Arrays.toString(args_clss));
                     Method m = c.getMethod(method_name, args_clss);
                     System.out.println("[invokevirtual] " + c + ", " + m);
-
                     int argc = args_clss.length;
                     Object[] args = new Object[argc];
                     for(int k = argc - 1; 0 <= k; k--) {
                         Object o1 = stk.pop();
                         Class c1 = args_clss[k];
-                        if(!c1.equals(o1.getClass()))
-                            throw new JVMException(ECode.OPERAND_ERROR);
+                        // assertEq(c1, o1.getClass());
+                        // // expect int = class java.lang.Integer
                         args[k] = o1;
                     }
                     Object mobj = stk.pop();
@@ -877,7 +896,6 @@ public class JVM {
                     throw new JVMException(ECode.OPERAND_ERROR);
                 break;
             default:
-                System.out.println(code[i]);
                 throw new JVMException(ECode.UNDEFINED_OP);
             }
         }
