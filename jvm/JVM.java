@@ -767,6 +767,8 @@ public class JVM {
                 stk_frame.push(objs);
                 stk.push(value);
                 break;
+            case 18: // ????
+                break;
             case 178: // getstatic 222
                 index = (code[i + 1] << 8) | code[i + 2];
                 i = i + 3;
