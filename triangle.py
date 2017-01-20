@@ -33,6 +33,7 @@ margin_top = (screen_height - block_height) / 2
 button_positions = []
 questions = []
 
+# draw functions
 def draw_button(draw, n, color):
     pos = button_positions[n]
     x = pos[0]
@@ -76,24 +77,60 @@ def make_question_image(question):
     # paint background with white
     draw.rectangle((0, 0, screen_width, screen_height), fill=white, outline=white)
     draw_default_buttons(draw)
+
     draw_question(draw, question)
     name = question["name"]
     image.save('%s.png' % name)
     print "generated " + name + ".png"
     return 0
 
-def randint_avoid(max_, lst):
+# for making new question automatically
+def randbutton_avoid(lst):
     if len (lst) == 0:
-        return random.randint(0, max_)
+        return random.randint(0, button_num - 1)
     n = lst[0]
     while(n in lst):
-        n = random.randint(0, max_)
+        n = random.randint(0, button_num - 1)
     return n
 
-def generate_equilateral_triangle(length_side):
-    if length_side <= 0 or button_num_width <= length_side:
-        print "invalid length_side in generate_equilateral_triangle."
-        return []
+def get_dist(n1, n2):
+    pos1 = button_positions[n1]
+    pos2 = button_positions[n2]
+    return math.sqrt (math.pow(pos1[0] - pos2[0], 2) +
+                     math.pow(pos1[1] - pos2[1], 2))
+
+def is_eqtriangle(x, y, z):
+    dist1 = get_dist(x, y)
+    dist2 = get_dist(y, z)
+    dist3 = get_dist(x, z)
+    return (math.pow(dist1 - dist2, 2) < 0.1 and
+            math.pow(dist2 - dist3, 2) < 0.1 and
+            math.pow(dist3 - dist1, 2) < 0.1)
+
+def contain_single_eqtriangle(point):
+    eqtriangle_num = 0
+    for i, pair in enumerate(point):
+        n1 = pair[0]
+        n2 = pair[1]
+        linked_n1 = [False] * button_num
+        linked_n2 = [False] * button_num
+        for x in range(i, len (point)):
+            pair_2 = point[x]
+            if pair_2[0] == n1:
+                linked_n1[pair_2[1]] = True
+            elif pair_2[0] == n2:
+                linked_n2[pair_2[1]] = True
+            elif pair_2[1] == n1:
+                linked_n1[pair_2[0]] = True
+            elif pair_2[1] == n2:
+                linked_n2[pair_2[0]] = True
+        for x in xrange(button_num):
+            if linked_n1[x] and linked_n2[x]:
+                if is_eqtriangle(x, n1, n2):
+                    eqtriangle_num += 1
+    return eqtriangle_num == 1
+
+def generate_ans(length_side):
     a = b = c = -1
     while True:
         a = random.randint(0, button_num - 1)
@@ -104,16 +141,39 @@ def generate_equilateral_triangle(length_side):
         if upward:
             c = a - button_num_width * length_side
             if c >= 0: break
-        c = a + (button_num_width - 1) * lengthSide;
-        if button_num <= c: break
+        c = a + (button_num_width - 1) * length_side;
+        if c < button_num: break
     return [a, b, c]
 
-def generate_question():
-    max_ = len (button_positions) - 1
+def generate_ans_and_point(dammy_line_num):
     length_side = random.randint(1, button_num_width - 1)
-    ans = generate_equilateral_triangle(length_side)
+    ans = generate_ans(length_side)
     appeared_lst = ans
     point = [[ans[0], ans[1]], [ans[0], ans[2]], [ans[1], ans[2]]]
+    diff = c = 0
+    while c <= dammy_line_num:
+        new_point = []
+        if c == dammy_line_num - 1:
+            i = randbutton_avoid(appeared_lst)
+            j = appeared_lst[random.randint(0, len (appeared_lst) - 1)]
+            new_point = point + [[i, j]]
+            diff = 1
+        else:
+            pair = point[random.randint(0, len (point) - 1)]
+            i = randbutton_avoid(appeared_lst)
+            new_point = point + [[i, pair[0]], [i, pair[1]]]
+            diff = 2
+        if contain_single_eqtriangle(new_point):
+            point[:] = new_point
+            appeared_lst.append(i)
+            c += diff
+    print point
+    return [ans, point]
+
+def generate_question():
+    ps = generate_ans_and_point(2)
+    ans = ps[0]
+    point = ps[1]
     return { "name": "test", "level": 10, "ans": ans, "point": point }
 
 # initialize button_positions
@@ -130,4 +190,6 @@ data = json.load(f)
 for d in data:
     questions.append(d)
 
-make_question_image(generate_question())
+q = generate_question()
+print (q["point"])
+make_question_image(q)
