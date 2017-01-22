@@ -93,11 +93,19 @@ def randbutton_avoid(lst):
         n = random.randint(0, button_num - 1)
     return n
 
+def is_on_straight(x, y, z):
+    posx = button_positions[x]
+    posy = button_positions[y]
+    posz = button_positions[z]
+    katamuki_xy = (posy[1] - posx[1]) / (posy[0] - posx[0])
+    katamuki_yz = (posz[1] - posy[1]) / (posz[0] - posy[0])
+    return (math.pow (katamuki_xy - katamuki_yz, 2) < 0.1)
+
 def get_dist(n1, n2):
     pos1 = button_positions[n1]
     pos2 = button_positions[n2]
     return math.sqrt (math.pow(pos1[0] - pos2[0], 2) +
-                     math.pow(pos1[1] - pos2[1], 2))
+                      math.pow(pos1[1] - pos2[1], 2))
 
 def is_eqtriangle(x, y, z):
     dist1 = get_dist(x, y)
@@ -151,22 +159,24 @@ def generate_ans_and_point(dammy_line_num):
     appeared_lst = ans
     point = [[ans[0], ans[1]], [ans[0], ans[2]], [ans[1], ans[2]]]
     diff = c = 0
-    while c <= dammy_line_num:
+    while c < dammy_line_num:
         new_point = []
-        if c == dammy_line_num - 1:
-            i = randbutton_avoid(appeared_lst)
+        i = randbutton_avoid(appeared_lst)
+        if False: #c == dammy_line_num - 1:
             j = appeared_lst[random.randint(0, len (appeared_lst) - 1)]
             new_point = point + [[i, j]]
             diff = 1
         else:
             pair = point[random.randint(0, len (point) - 1)]
-            i = randbutton_avoid(appeared_lst)
+            if is_on_straight(i, pair[0], pair[1]):
+                continue
             new_point = point + [[i, pair[0]], [i, pair[1]]]
             diff = 2
         if contain_single_eqtriangle(new_point):
             point[:] = new_point
             appeared_lst.append(i)
             c += diff
+        else: print "no!"
     print point
     return [ans, point]
 
@@ -191,5 +201,5 @@ for d in data:
     questions.append(d)
 
 q = generate_question()
-print (q["point"])
 make_question_image(q)
+print (is_on_straight(0, 7, 35))
