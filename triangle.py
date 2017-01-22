@@ -97,6 +97,8 @@ def is_on_straight(x, y, z):
     posx = button_positions[x]
     posy = button_positions[y]
     posz = button_positions[z]
+    if (posy[0] - posx[0]) == 0 or (posz[0] - posy[0]) == 0:
+        return posy[0] == posx[0] == posz[0]
     katamuki_xy = (posy[1] - posx[1]) / (posy[0] - posx[0])
     katamuki_yz = (posz[1] - posy[1]) / (posz[0] - posy[0])
     return (math.pow (katamuki_xy - katamuki_yz, 2) < 0.1)
@@ -181,7 +183,7 @@ def generate_ans_and_point(dammy_line_num):
     return [ans, point]
 
 def generate_question():
-    ps = generate_ans_and_point(2)
+    ps = generate_ans_and_point(9)
     ans = ps[0]
     point = ps[1]
     return { "name": "test", "level": 10, "ans": ans, "point": point }
@@ -202,4 +204,4 @@ for d in data:
 
 q = generate_question()
 make_question_image(q)
-print (is_on_straight(0, 7, 35))
+# print (is_on_straight(2, 13, 24))
