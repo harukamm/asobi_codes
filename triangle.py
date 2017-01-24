@@ -97,8 +97,12 @@ def is_on_straight(x, y, z):
     posx = button_positions[x]
     posy = button_positions[y]
     posz = button_positions[z]
-    if (posy[0] - posx[0]) == 0 or (posz[0] - posy[0]) == 0:
-        return posy[0] == posx[0] == posz[0]
+    if posy[0] == posx[0] and posz[0] == posy[0]:
+        return True
+    elif posy[0] == posx[0]:
+        return posy[1] == posx[1]
+    elif posz[0] == posy[0]:
+        return posz[1] == posy[1]
     katamuki_xy = (posy[1] - posx[1]) / (posy[0] - posx[0])
     katamuki_yz = (posz[1] - posy[1]) / (posz[0] - posy[0])
     return (math.pow (katamuki_xy - katamuki_yz, 2) < 0.1)
@@ -140,7 +144,7 @@ def contain_single_eqtriangle(point):
                     eqtriangle_num += 1
     return eqtriangle_num == 1
 
-def generate_ans(length_side):
+def generate_eqtriangle(length_side):
     a = b = c = -1
     while True:
         a = random.randint(0, button_num - 1)
@@ -157,7 +161,7 @@ def generate_ans(length_side):
 
 def generate_ans_and_point(dammy_line_num):
     length_side = random.randint(1, button_num_width - 1)
-    ans = generate_ans(length_side)
+    ans = [7, 10, 25] #generate_eqtriangle(length_side)
     appeared_lst = ans
     point = [[ans[0], ans[1]], [ans[0], ans[2]], [ans[1], ans[2]]]
     diff = c = 0
@@ -183,7 +187,7 @@ def generate_ans_and_point(dammy_line_num):
     return [ans, point]
 
 def generate_question():
-    ps = generate_ans_and_point(9)
+    ps = generate_ans_and_point(6)
     ans = ps[0]
     point = ps[1]
     return { "name": "test", "level": 10, "ans": ans, "point": point }
@@ -202,6 +206,8 @@ data = json.load(f)
 for d in data:
     questions.append(d)
 
-q = generate_question()
-make_question_image(q)
+#q = generate_question()
+#make_question_image(q)
 # print (is_on_straight(2, 13, 24))
+
+print is_on_straight(1, 29, 1)
