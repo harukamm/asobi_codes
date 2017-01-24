@@ -159,6 +159,39 @@ def generate_eqtriangle(length_side):
         if c < button_num: break
     return [a, b, c]
 
+def de_duplicate(lst):
+    lst2 = []
+    for x in lst:
+        if x not in lst2:
+            lst2.append(x)
+    return lst2
+
+def get_common(lst1, lst2):
+    lst_ = []
+    for x in lst1:
+        for y in lst2:
+            if x == y:
+                lst_.append(x)
+    return lst_
+
+def get_cross_buttons(pair):
+    n1 = pair[1] if pair[0] > pair[1] else pair[0]
+    n2 = pair[0] if pair[0] > pair[1] else pair[1]
+    inters = []
+    for x in xrange(n1 + 1, n2):
+        if is_on_straight(n1, x, n2):
+            inters.append(x)
+    return inters
+
+def get_intersec(point, pair):
+    crossed = get_cross_buttons(pair)
+    inters = []
+    for pair2 in point:
+        lst = get_cross_buttons(pair2)
+        lst2 = get_common(crossed, lst)
+        inters[:] = inters + lst2
+    return de_duplicate(inters)
+
 def generate_ans_and_point(dammy_line_num):
     length_side = random.randint(1, button_num_width - 1)
     ans = [7, 10, 25] #generate_eqtriangle(length_side)
@@ -208,6 +241,6 @@ for d in data:
 
 #q = generate_question()
 #make_question_image(q)
-# print (is_on_straight(2, 13, 24))
-
-print is_on_straight(1, 29, 1)
+print get_cross_buttons([1, 27])
+print (is_on_straight(1, 29, 29))
+print get_intersec ([[1, 27]], [4, 24])
