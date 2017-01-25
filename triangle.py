@@ -33,7 +33,9 @@ margin_top = (screen_height - block_height) / 2
 button_positions = []
 questions = []
 
+# ################################################
 # draw functions
+# ################################################
 def draw_button(draw, n, color):
     pos = button_positions[n]
     x = pos[0]
@@ -84,7 +86,9 @@ def make_question_image(question):
     print "generated " + name + ".png"
     return 0
 
+# ################################################
 # for making new question automatically
+# ################################################
 def randbutton_avoid(lst):
     if len (lst) == 0:
         return random.randint(0, button_num - 1)
@@ -105,7 +109,7 @@ def is_on_straight(x, y, z):
         return posz[1] == posy[1]
     katamuki_xy = (posy[1] - posx[1]) / (posy[0] - posx[0])
     katamuki_yz = (posz[1] - posy[1]) / (posz[0] - posy[0])
-    return (math.pow (katamuki_xy - katamuki_yz, 2) < 0.1)
+    return (math.pow (katamuki_xy - katamuki_yz, 2) < 0.01)
 
 def get_dist(n1, n2):
     pos1 = button_positions[n1]
