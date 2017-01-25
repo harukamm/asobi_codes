@@ -182,6 +182,16 @@ def generate_eqtriangle(length_side):
         if c < button_num: break
     return [a, b, c]
 
+def generate_noneqtriangle():
+    a = b = c = -1
+    while True:
+        a = random.randint(0, button_num - 1)
+        b = random.randint(0, button_num - 1)
+        c = random.randint(0, button_num - 1)
+        if not is_on_straight(a, b, c) and not is_eqtriangle(a, b, c):
+            break
+    return [a, b, c]
+
 def de_duplicate(lst):
     lst2 = []
     for x in lst:
