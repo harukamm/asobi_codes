@@ -64,9 +64,10 @@ def draw_line(draw, n1, n2):
 def draw_question(draw, question):
     point = question["point"]
     for p in point:
-        draw_button(draw, p[0], used_button_color)
-        draw_button(draw, p[1], used_button_color)
-        draw_line(draw, p[0], p[1])
+        draw_button(draw, p, used_button_color)
+    line = question["line"]
+    for pair in line:
+        draw_line(draw, pair[0], pair[1])
     ans = question["ans"]
     draw_button(draw, ans[0], ans_button_color)
     draw_button(draw, ans[1], ans_button_color)
@@ -110,6 +111,24 @@ def is_on_straight(x, y, z):
     katamuki_xy = (posy[1] - posx[1]) / (posy[0] - posx[0])
     katamuki_yz = (posz[1] - posy[1]) / (posz[0] - posy[0])
     return (math.pow (katamuki_xy - katamuki_yz, 2) < 0.01)
+
+def is_extension(pair1, pair2):
+    b1 = is_on_straight(pair1[0], pair1[1], pair2[0])
+    b2 = is_on_straight(pair1[0], pair1[1], pair2[1])
+    if b1 and b2:
+        pair1.sort()
+        pair2.sort()
+        return pair1[0] == pair2[1] or pair1[1] == pair2[0]
+    else:
+        return False
+
+def have_deplicate_line(line, pair):
+    for p in line:
+        b1 = is_on_straight(p[0], p[1], pair[0])
+        b2 = is_on_straight(p[0], p[1], pair[1])
+        if (b1 and b2) and (not is_extension(p, pair)):
+            return True
+    return False
 
 def get_dist(n1, n2):
     pos1 = button_positions[n1]
@@ -215,6 +234,12 @@ def generate_ans_and_point(dammy_line_num):
                 continue
             new_point = point + [[i, pair[0]], [i, pair[1]]]
             diff = 2
+
+        have_dep = False
+        for pair in new_pairs:
+            have_dep = have_dep or have_deplicate_line(line, pair)
+        if have_dep:
+            continue
         if contain_single_eqtriangle(new_point):
             point[:] = new_point
             appeared_lst.append(i)
@@ -245,6 +270,15 @@ for d in data:
 
 #q = generate_question()
 #make_question_image(q)
-print get_cross_buttons([1, 27])
-print (is_on_straight(1, 29, 29))
-print get_intersec ([[1, 27]], [4, 24])
+
+#print get_cross_buttons([1, 27])
+#print (is_on_straight(1, 29, 29))
+#print get_intersec ([[1, 27], [12, 26]], [4, 24])
+#print get_intersec([[1, 17]], [7, 10])
+#print is_on_straight(1, 9, 17) # excepted: False
+#print get_intersec([[7, 10], [7, 25], [10, 25], [24, 25]], [0, 7])
+#print is_extension([24, 20], [16, 20])
+#print have_deplicate_line ([[7, 10], [7, 25], [10, 25], [24, 7], [24, 25], [0, 24], [0, 7]], [28, 7])
+# {'point': [7, 10, 25, 22, 34, 13, 19, 1], 'line': [[7, 10], [7, 25], [10, 25], [7, 22], [22, 10], [7, 34], [34, 25], [1, 10], [1, 25]], 'ans': [7, 10, 25], 'name': 'test', 'level': 10}
+#print have_deplicate_line([[7, 10], [7, 25], [10, 25], [7, 22], [22, 10], [7, 34], [34, 25], [1, 10]], [1, 25])
+#print have_deplicate_line([[7, 10], [7, 25], [10, 25], [19, 10]], [19, 25])
