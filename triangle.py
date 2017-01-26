@@ -144,27 +144,38 @@ def is_eqtriangle(x, y, z):
             math.pow(dist2 - dist3, 2) < 0.1 and
             math.pow(dist3 - dist1, 2) < 0.1)
 
-def contain_single_eqtriangle(point):
+def include_in_line(line, pair):
+    pair.sort()
+    for pair2 in line:
+        pair2.sort()
+        if pair2[0] <= pair[0] and pair[1] <= pair2[1]:
+            b1 = is_on_straight(pair2[0], pair2[1], pair[0])
+            b2 = is_on_straight(pair2[0], pair2[1], pair[1])
+            if b1 and b2:
+                return True
+    return False
+
+def include_triangle(line, triangle):
+    if len(triangle) != 3:
+        return False
+    p1 = [triangle[0], triangle[1]]
+    p2 = [triangle[1], triangle[2]]
+    p3 = [triangle[0], triangle[2]]
+    return include_in_line(line, p1) and \
+        include_in_line(line, p2) and \
+        include_in_line(line, p3)
+
+def contain_single_eqtriangle(line, point):
     eqtriangle_num = 0
-    for i, pair in enumerate(point):
-        n1 = pair[0]
-        n2 = pair[1]
-        linked_n1 = [False] * button_num
-        linked_n2 = [False] * button_num
-        for x in range(i, len (point)):
-            pair_2 = point[x]
-            if pair_2[0] == n1:
-                linked_n1[pair_2[1]] = True
-            elif pair_2[0] == n2:
-                linked_n2[pair_2[1]] = True
-            elif pair_2[1] == n1:
-                linked_n1[pair_2[0]] = True
-            elif pair_2[1] == n2:
-                linked_n2[pair_2[0]] = True
-        for x in xrange(button_num):
-            if linked_n1[x] and linked_n2[x]:
-                if is_eqtriangle(x, n1, n2):
+    length = len(point)
+    for i in xrange(0, length):
+        for j in xrange(i + 1, length):
+            for k in xrange(j + 1, length):
+                if is_eqtriangle(point[i], point[j], point[k]) and \
+                   include_triangle(line, [point[i], point[j], point[k]]):
                     eqtriangle_num += 1
+                    if 1 < eqtriangle_num:
+                        return False
     return eqtriangle_num == 1
 
 def generate_eqtriangle(length_side):
@@ -205,7 +216,7 @@ def get_common(lst1, lst2):
         for y in lst2:
             if x == y:
                 lst_.append(x)
-    return lst_
+    return de_duplicate(lst_)
 
 def get_cross_buttons(pair):
     n1 = pair[1] if pair[0] > pair[1] else pair[0]
@@ -216,33 +227,36 @@ def get_cross_buttons(pair):
             inters.append(x)
     return inters
 
-def get_intersec(point, pair):
+def get_intersec(line, pair):
     crossed = get_cross_buttons(pair)
     inters = []
-    for pair2 in point:
+    for pair2 in line:
         lst = get_cross_buttons(pair2)
         lst2 = get_common(crossed, lst)
         inters[:] = inters + lst2
-    return de_duplicate(inters)
+    return inters
 
-def generate_ans_and_point(dammy_line_num):
+def generate_entries(dammy_line_num):
     length_side = random.randint(1, button_num_width - 1)
-    ans = [7, 10, 25] #generate_eqtriangle(length_side)
-    appeared_lst = ans
-    point = [[ans[0], ans[1]], [ans[0], ans[2]], [ans[1], ans[2]]]
+    ans = generate_eqtriangle(length_side)
+    appeared_lst = ans[:]
+    line = [[ans[0], ans[1]], [ans[0], ans[2]], [ans[1], ans[2]]]
     diff = c = 0
     while c < dammy_line_num:
-        new_point = []
-        i = randbutton_avoid(appeared_lst)
-        if False: #c == dammy_line_num - 1:
-            j = appeared_lst[random.randint(0, len (appeared_lst) - 1)]
-            new_point = point + [[i, j]]
-            diff = 1
-        else:
-            pair = point[random.randint(0, len (point) - 1)]
+        new_pairs = []
+        new_points = []
+        if False: # patten 1
+            t = generate_noneqtriangle()
+            new_pairs = [[t[0], t[1]], [t[0], t[2]], [t[1], t[2]]]
+            new_points = [t[0], t[1], t[2]]
+            diff = 3
+        else: # patten 2
+            i = randbutton_avoid(appeared_lst)
+            pair = line[random.randint(0, len (line) - 1)]
             if is_on_straight(i, pair[0], pair[1]):
                 continue
-            new_point = point + [[i, pair[0]], [i, pair[1]]]
+            new_pairs = [[i, pair[0]], [i, pair[1]]]
+            new_points = [i]
             diff = 2
 
         have_dep = False
@@ -250,19 +264,24 @@ def generate_ans_and_point(dammy_line_num):
             have_dep = have_dep or have_deplicate_line(line, pair)
         if have_dep:
             continue
-        if contain_single_eqtriangle(new_point):
-            point[:] = new_point
-            appeared_lst.append(i)
-            c += diff
-        else: print "no!"
-    print point
-    return [ans, point]
+        inters = []
+        for pair in new_pairs:
+            inters[:] = inters + get_intersec(line, pair)
 
-def generate_question():
-    ps = generate_ans_and_point(6)
+        # Add new points and pairs if num of equal triangle is single.
+        if contain_single_eqtriangle(line + new_pairs, appeared_lst + inters + new_points):
+            appeared_lst[:] = appeared_lst + inters + new_points
+            line[:] = line + new_pairs
+            c += diff
+    return [ans, appeared_lst, line]
+
+def generate_question(str):
+    ps = generate_entries(20)
     ans = ps[0]
     point = ps[1]
-    return { "name": "test", "level": 10, "ans": ans, "point": point }
+    line = ps[2]
+    return { "name": str, "level": 10, "ans": ans,
+             "point": point, "line": line }
 
 # initialize button_positions
 for num_y in xrange(button_num_height):
@@ -278,17 +297,45 @@ data = json.load(f)
 for d in data:
     questions.append(d)
 
-#q = generate_question()
-#make_question_image(q)
+q = { "name": "test", "level": 10, "ans": [7, 10, 25], "point": [7, 10, 25, 22, 33, 13], "line": [[7, 10], [7, 25], [10, 25], [7, 22], [22, 10], [33, 22], [33, 10], [13, 33], [13, 10]] }
 
+q = { "name": "test", "level": 10, "ans": generate_noneqtriangle(), "point": [], "line": [] }
+
+q = generate_question("test2")
+print "------------------"
+print q
+make_question_image(q)
 #print get_cross_buttons([1, 27])
 #print (is_on_straight(1, 29, 29))
 #print get_intersec ([[1, 27], [12, 26]], [4, 24])
 #print get_intersec([[1, 17]], [7, 10])
 #print is_on_straight(1, 9, 17) # excepted: False
+
 #print get_intersec([[7, 10], [7, 25], [10, 25], [24, 25]], [0, 7])
 #print is_extension([24, 20], [16, 20])
+
+
 #print have_deplicate_line ([[7, 10], [7, 25], [10, 25], [24, 7], [24, 25], [0, 24], [0, 7]], [28, 7])
+
 # {'point': [7, 10, 25, 22, 34, 13, 19, 1], 'line': [[7, 10], [7, 25], [10, 25], [7, 22], [22, 10], [7, 34], [34, 25], [1, 10], [1, 25]], 'ans': [7, 10, 25], 'name': 'test', 'level': 10}
+
 #print have_deplicate_line([[7, 10], [7, 25], [10, 25], [7, 22], [22, 10], [7, 34], [34, 25], [1, 10]], [1, 25])
+
 #print have_deplicate_line([[7, 10], [7, 25], [10, 25], [19, 10]], [19, 25])
+
+'''
+print is_on_straight(0, 20, 33)
+print is_on_straight(0, 13, 33)
+print is_on_straight(13, 20, 27)
+print is_on_straight(30, 17, 21)
+print is_on_straight(30, 17, 26)
+'''
+
+#{'point': [33, 30, 15, 22, 23, 16, 2, 12, 5, 18, 8, 35, 24], 'line': [[30, 33], [33, 15], [15, 30], [22, 30], [22, 15], [23, 30], [23, 15], [16, 30], [16, 33], [2, 22], [2, 15], [12, 16], [12, 30], [5, 23], [5, 15], [18, 16], [18, 33], [8, 12], [8, 30], [35, 18], [35, 16], [24, 16], [24, 33]], 'ans': [33, 30, 15], 'name': 'test2', 'level': 10}
+
+#print contain_single_eqtriangle([[30, 33], [33, 15], [15, 30], [22, 30], [22, 15], [23, 30], [23, 15], [16, 30], [16, 33], [2, 22], [2, 15], [12, 16], [12, 30], [5, 23], [5, 15], [18, 16], [18, 33], [8, 12], [8, 30], [35, 18], [35, 16], [24, 16], [24, 33]], [33, 30, 15, 22, 23, 16, 2, 12, 5, 18, 8, 35, 24])
+#print get_intersec([[24, 16]], [30, 15])
+
+
+#print include_in_line([[30, 33], [33, 15], [15, 30], [22, 30], [22, 15], [23, 30], [23, 15], [16, 30], [16, 33], [2, 22], [2, 15], [12, 16], [12, 30], [5, 23], [5, 15], [18, 16], [18, 33], [8, 12], [8, 30], [35, 18], [35, 16], [24, 16], [24, 33]], [13, 14])
+# print include_in_line([[12, 16]], [16, 12])
