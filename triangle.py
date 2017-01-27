@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 from PIL import Image, ImageDraw
 import math, json, random
+import numpy as np
 
 fname = "findtrianglesecond.json"
 
@@ -136,6 +137,16 @@ def get_dist(n1, n2):
     return math.sqrt (math.pow(pos1[0] - pos2[0], 2) +
                       math.pow(pos1[1] - pos2[1], 2))
 
+def get_degree(x, y, z):
+    xpos = button_positions[x]
+    ypos = button_positions[y]
+    zpos = button_positions[z]
+    v1 = [zpos[0] - ypos[0], zpos[1] - ypos[1]]
+    v2 = [xpos[0] - ypos[0], xpos[1] - ypos[1]]
+    cos = np.dot(v1, v2) / np.linalg.norm(v1) /  np.linalg.norm(v2)
+    theta = np.arccos(cos) * 180 / np.pi
+    return theta
+
 def is_eqtriangle(x, y, z):
     dist1 = get_dist(x, y)
     dist2 = get_dist(y, z)
@@ -143,6 +154,15 @@ def is_eqtriangle(x, y, z):
     return (math.pow(dist1 - dist2, 2) < 0.1 and
             math.pow(dist2 - dist3, 2) < 0.1 and
             math.pow(dist3 - dist1, 2) < 0.1)
+
+def is_too_sharp_triangle(x, y, z):
+    dgx = get_degree(z, x, y)
+    dgy = get_degree(x, y, z)
+    dgz = get_degree(y, z, x)
+    lst = [dgx, dgy, dgz]
+    lst.sort()
+    return (lst[0] < 30 and 100 < lst[2]) or \
+        (lst[0] < 25 and 85 < lst[2])
 
 def include_in_line(line, pair):
     pair.sort()
@@ -193,12 +213,13 @@ def generate_eqtriangle(length_side):
         if c < button_num: break
     return [a, b, c]
 
-def generate_noneqtriangle():
+def generate_noneqtriangle(lst):
     a = b = c = -1
     while True:
-        a = random.randint(0, button_num - 1)
-        b = random.randint(0, button_num - 1)
-        c = random.randint(0, button_num - 1)
+        a = randbutton_avoid(lst)
+        b = randbutton_avoid(lst)
+        c = randbutton_avoid(lst)
+        if is_too_sharp_triangle(a, b, c): continue
         if not is_on_straight(a, b, c) and not is_eqtriangle(a, b, c):
             break
     return [a, b, c]
@@ -237,7 +258,7 @@ def get_intersec(line, pair):
     return inters
 
 def generate_entries(dammy_line_num):
-    length_side = random.randint(1, button_num_width - 1)
+    length_side = random.randint(1, button_num_width - 2)
     ans = generate_eqtriangle(length_side)
     appeared_lst = ans[:]
     line = [[ans[0], ans[1]], [ans[0], ans[2]], [ans[1], ans[2]]]
@@ -245,15 +266,16 @@ def generate_entries(dammy_line_num):
     while c < dammy_line_num:
         new_pairs = []
         new_points = []
-        if False: # patten 1
-            t = generate_noneqtriangle()
+        if c < dammy_line_num - 3 and random.randint(0, 2) < 2: # patten 1
+            t = generate_noneqtriangle(appeared_lst)
             new_pairs = [[t[0], t[1]], [t[0], t[2]], [t[1], t[2]]]
             new_points = [t[0], t[1], t[2]]
             diff = 3
         else: # patten 2
             i = randbutton_avoid(appeared_lst)
             pair = line[random.randint(0, len (line) - 1)]
-            if is_on_straight(i, pair[0], pair[1]):
+            if is_too_sharp_triangle(i, pair[0], pair[1]) or \
+               is_on_straight(i, pair[0], pair[1]):
                 continue
             new_pairs = [[i, pair[0]], [i, pair[1]]]
             new_points = [i]
@@ -276,7 +298,7 @@ def generate_entries(dammy_line_num):
     return [ans, appeared_lst, line]
 
 def generate_question(str):
-    ps = generate_entries(20)
+    ps = generate_entries(17)
     ans = ps[0]
     point = ps[1]
     line = ps[2]
@@ -299,43 +321,13 @@ for d in data:
 
 q = { "name": "test", "level": 10, "ans": [7, 10, 25], "point": [7, 10, 25, 22, 33, 13], "line": [[7, 10], [7, 25], [10, 25], [7, 22], [22, 10], [33, 22], [33, 10], [13, 33], [13, 10]] }
 
-q = { "name": "test", "level": 10, "ans": generate_noneqtriangle(), "point": [], "line": [] }
+#t = generate_noneqtriangle()
+#q = { "name": "test", "level": 10, "ans": t, "point": [], "line": [] }
+#make_question_image(q)
 
 q = generate_question("test2")
 print "------------------"
 print q
 make_question_image(q)
-#print get_cross_buttons([1, 27])
-#print (is_on_straight(1, 29, 29))
-#print get_intersec ([[1, 27], [12, 26]], [4, 24])
-#print get_intersec([[1, 17]], [7, 10])
-#print is_on_straight(1, 9, 17) # excepted: False
-
-#print get_intersec([[7, 10], [7, 25], [10, 25], [24, 25]], [0, 7])
-#print is_extension([24, 20], [16, 20])
 
 
-#print have_deplicate_line ([[7, 10], [7, 25], [10, 25], [24, 7], [24, 25], [0, 24], [0, 7]], [28, 7])
-
-# {'point': [7, 10, 25, 22, 34, 13, 19, 1], 'line': [[7, 10], [7, 25], [10, 25], [7, 22], [22, 10], [7, 34], [34, 25], [1, 10], [1, 25]], 'ans': [7, 10, 25], 'name': 'test', 'level': 10}
-
-#print have_deplicate_line([[7, 10], [7, 25], [10, 25], [7, 22], [22, 10], [7, 34], [34, 25], [1, 10]], [1, 25])
-
-#print have_deplicate_line([[7, 10], [7, 25], [10, 25], [19, 10]], [19, 25])
-
-'''
-print is_on_straight(0, 20, 33)
-print is_on_straight(0, 13, 33)
-print is_on_straight(13, 20, 27)
-print is_on_straight(30, 17, 21)
-print is_on_straight(30, 17, 26)
-'''
-
-#{'point': [33, 30, 15, 22, 23, 16, 2, 12, 5, 18, 8, 35, 24], 'line': [[30, 33], [33, 15], [15, 30], [22, 30], [22, 15], [23, 30], [23, 15], [16, 30], [16, 33], [2, 22], [2, 15], [12, 16], [12, 30], [5, 23], [5, 15], [18, 16], [18, 33], [8, 12], [8, 30], [35, 18], [35, 16], [24, 16], [24, 33]], 'ans': [33, 30, 15], 'name': 'test2', 'level': 10}
-
-#print contain_single_eqtriangle([[30, 33], [33, 15], [15, 30], [22, 30], [22, 15], [23, 30], [23, 15], [16, 30], [16, 33], [2, 22], [2, 15], [12, 16], [12, 30], [5, 23], [5, 15], [18, 16], [18, 33], [8, 12], [8, 30], [35, 18], [35, 16], [24, 16], [24, 33]], [33, 30, 15, 22, 23, 16, 2, 12, 5, 18, 8, 35, 24])
-#print get_intersec([[24, 16]], [30, 15])
-
-
-#print include_in_line([[30, 33], [33, 15], [15, 30], [22, 30], [22, 15], [23, 30], [23, 15], [16, 30], [16, 33], [2, 22], [2, 15], [12, 16], [12, 30], [5, 23], [5, 15], [18, 16], [18, 33], [8, 12], [8, 30], [35, 18], [35, 16], [24, 16], [24, 33]], [13, 14])
-# print include_in_line([[12, 16]], [16, 12])
