@@ -107,6 +107,7 @@ let rec eval exp env cont = match exp with
      eval p env (fun p' ->
 		             if p' = Sym ("t") then eval x env cont else eval y env cont)
   | Cons (Sym "quote", Cons (r, Nil)) -> cont r
+  | Cons (Sym "`", Cons (r, Nil)) -> cont r
   | Cons (Sym "lambda", _) -> cont exp
   | Cons (Sym "defun", Cons (Sym f, (Cons (args, _)))) -> cont exp
   | Cons (Sym "define", Cons (Sym f, (Cons (e, _)))) -> cont exp
@@ -230,6 +231,7 @@ let tokenize str =
       | "\n" | "\r" -> ([], ni)
       | ";" ->
 	       let (_, i') = until (fun s -> s <> "\n") ni "" in ([], i' + 1)
+      | "`" -> recadd ni (S ("`"))
       | "-" when List.mem ns num ->
 	       let (sint, i') = skip num ni in
 	       recadd i' (I (-(int_of_string sint)))
@@ -259,7 +261,8 @@ let tarr = ref (Array.make 0 L)
 (* value := [a-z]+
           | [0-9]+
  * expr := value
-         | "(" expr* ")" *)
+         | "(" expr* ")"
+         | "`" expr *)
 
 let ahead () = ptr := !ptr + 1
 let accept p = if !ptr < Array.length !tarr then
@@ -291,7 +294,13 @@ let value () =
 
 (* expr -> unit -> expr_t *)
 let rec expr () =
-  try value ()
+  try
+    begin
+      if (accept (fun s -> s = S ("`"))) then
+        let e = expr () in
+        Cons (Sym ("`"), Cons (e, Nil))
+      else value ()
+    end
   with _ ->
     let p = !ptr in
     if (accept (fun s -> s = L)) then
