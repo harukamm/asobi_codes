@@ -285,28 +285,28 @@ let rec many p =
 
 (* value : unit -> expr_t *)
 let value () =
-  let x = expect (fun t -> t <> L && t <> R)
+  let x = expect (fun t -> t <> S ("`") && t <> L && t <> R)
 		             (add_info "neither a symbol nor int" !ptr !line) in
   match x with
-  | S (s) -> if s = "nil" then Nil else Sym (s)
+  | S ("`") -> error ""
+  | S ("nil") -> Nil
+  | S (s) -> Sym (s)
   | I (i) -> Int (i)
   | _ -> error ""
 
 (* expr -> unit -> expr_t *)
 let rec expr () =
-  try
-    begin
-      if (accept (fun s -> s = S ("`"))) then
-        let e = expr () in
-        Cons (Sym ("`"), Cons (e, Nil))
-      else value ()
-    end
+  try value ()
   with _ ->
     let p = !ptr in
     if (accept (fun s -> s = L)) then
       let es = many expr in
       expect (fun s -> s = R) (add_info "expected ')'" !ptr !line);
       List.fold_right (fun e t -> Cons (e, t)) es Nil
+    else if (accept (fun s -> s = S ("`"))) then
+      let _ = print_endline "hogehgoe" in
+      let e = expr () in
+      Cons (Sym ("`"), Cons (e, Nil))
     else error (add_info "invalid sytax" p !line)
 
 (* parse : string -> expr_t list *)
