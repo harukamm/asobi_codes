@@ -216,42 +216,48 @@ let tokenize str =
     else (bf, i)
   in
   let skip lst i = until (fun s -> List.mem s lst) i "" in
-  (* inner : int -> (token list * int) *)
-  let rec inner i =
+  let ptr = ref 0 in
+  (* by_line : unit -> token list *)
+  let rec by_line () =
+    let i = !ptr in
     if i < len then
       let ni = i + 1 in
+      let _ = ptr := ni in
       let ns = if ni < len then String.sub str ni 1 else "" in
       let s = String.sub str i 1 in
-      let recadd i' t =
-	      let (slst, ptr) = inner i' in (t :: slst, ptr) in
       match s with
-      | " " | "\t" -> inner ni
-      | "(" -> recadd ni L
-      | ")" -> recadd ni R
-      | "\n" | "\r" -> ([], ni)
-      | ";" ->
-	       let (_, i') = until (fun s -> s <> "\n") ni "" in ([], i' + 1)
-      | "`" -> recadd ni (S ("`"))
+      | " " | "\t" -> by_line ()
+      | "(" -> L :: (by_line ())
+      | ")" -> R :: (by_line ())
+      | "`" -> (S ("`")) :: (by_line ())
+      | "\n" | "\r" -> []
+      | ";" -> (* comment *)
+	       let (_, i') = until (fun s -> s <> "\n") ni "" in
+         let _ = ptr := i' + 1 in []
       | "-" when List.mem ns num ->
 	       let (sint, i') = skip num ni in
-	       recadd i' (I (-(int_of_string sint)))
+	       let _ = ptr := i' in
+         (I (-(int_of_string sint))) :: (by_line ())
       | _ when List.mem s num ->
 	       let (sint, i') = skip num i in
-	       recadd i' (I (int_of_string sint))
+         let _ = ptr := i' in
+         (I (int_of_string sint)) :: (by_line ())
       | _ ->
 	       let spec = [" "; "\t"; "("; ")"; "\n"; "\r"; ";"] in
 	       let (sym, i') = until (fun s -> not (List.mem s spec)) i "" in
-	       recadd i' (S (sym))
+         let _ = ptr := i' in
+	       (S (sym)) :: (by_line ())
       | _ -> error ("invalid char: " ^ s ^ " at " ^ (string_of_int i))
-    else ([], i)
-  in
-  (* h : int -> (token list) list *)
-  let rec h i =
-    if i < len then
-      let (line, ptr) = inner i in
-      if line = [] then h ptr else (line :: (h ptr))
     else []
-  in h 0
+  in
+  (* h : unit -> (token list) list *)
+  let rec h () =
+    if !ptr < len then
+      let line = by_line () in
+      let rest = h () in
+      if line = [] then rest else (line :: rest)
+    else []
+  in h ()
 
 (* parse *)
 let line = ref 0
