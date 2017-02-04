@@ -350,8 +350,8 @@ let e5 = start "(defun katsu (e1 e2) (if (eq e1 t) (if (eq e2 t) t nil) nil))
 		            (fb 18) ;Fizz
 		            (fb 11) ;11"
 
-let test () =
-  let ic = open_in "test.l" in
+let load fname =
+  let ic = open_in fname in
   try let rec h () =
 	      let line = input_line ic in
 	      let exp =
