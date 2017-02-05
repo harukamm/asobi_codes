@@ -310,7 +310,6 @@ let rec expr () =
       expect (fun s -> s = R) (add_info "expected ')'" !ptr !line);
       List.fold_right (fun e t -> Cons (e, t)) es Nil
     else if (accept (fun s -> s = S ("`"))) then
-      let _ = print_endline "hogehgoe" in
       let e = expr () in
       Cons (Sym ("`"), Cons (e, Nil))
     else error (add_info "invalid sytax" p !line)
