@@ -7,12 +7,14 @@
 (define (get-env env k) (if (eq env nil) nil (if (eq (pair-fst (car env)) k) (pair-snd (car env)) (get-env (cdr env) k))))
 (define (add-env env k v) (cons (make-pair k v) env))
 (define (adds-env env args vals) (if (eq args nil) env (adds-env (add-env env (car args) (car vals)) (cdr args) (cdr vals))))
+(define (append-env env1 env2) (if (eq env1 nil) env2 (append-env (cdr env1) (cons (car env1) env2))))
 
 ; env-test
 (get-env (add-env (add-env (add-env nil 9 3) 25 5) 4 2) 4) ; 2
 (get-env (add-env (add-env (add-env nil 9 3) 25 5) 4 2) 0) ; nil
 (get-env (add-env (add-env (add-env nil 9 3) 25 5) 4 2) 9) ; 3
 (adds-env (add-env (add-env nil `a 1) `b 2) `(c d e) `(5 2 1)) ; ((e 1) (d 2) (c 5) (b 1) (a 1))
+(append-env `((i 1) (j 2)) (add-env (add-env nil `t1 10) `t2 10)) ; ((j 2) (i 1) (t2 10) (t1 10))
 
 ; eval
 (define (evals es env) (if (eq es nil) nil (cons (eval (car es) env) (evals (cdr es) env))))
@@ -28,7 +30,8 @@
 (define (eval-eq e env) (if (eq `eq (car e)) (eq (eval (pair-snd e) env) (eval (pair-thd e) env)) (eval-car e env)))
 (define (eval-car e env) (if (eq `car (car e)) (car (eval (pair-snd e) env)) (eval-cdr e env)))
 (define (eval-cdr e env) (if (eq `cdr (car e)) (cdr (eval (pair-snd e) env)) (eval-cons e env)))
-(define (eval-cons e env) (if (eq `cons (car e)) (cons (eval (pair-snd e) env) (eval (pair-thd e) env)) (eval-app e env)))
+(define (eval-cons e env) (if (eq `cons (car e)) (cons (eval (pair-snd e) env) (eval (pair-thd e) env)) (eval-let e env)))
+(define (eval-let e env) (if (eq `let (car e)) (eval (pair-thd e) (append-env (pair-snd e) env)) (eval-app e env)))
 (define (eval-app e env) (if (eq `lambda (car (eval (car e) env))) (eval (pair-thd (eval (car e) env)) (adds-env env (pair-snd (eval (car e) env)) (evals (cdr e) env))) nil))
 
 ; eval-test
@@ -46,4 +49,6 @@
 (eval `(cdr (qt (5 1))) nil) ; (1)
 (eval `(cons 1 (qt (1 2))) nil) ; (1 1 2)
 (eval `(f 1) (add-env nil `f (lambda (x) x))) ; 1
+(eval `(let ((i 1) (j 1)) (eq i j)) nil) ; t
+(cons `((i 1) (j 2)) (add-env (add-env nil `t1 10) `t2 10))
 (eval `(f 1) (add-env nil `f (lambda (x) (eq x 1)))) ; 1
