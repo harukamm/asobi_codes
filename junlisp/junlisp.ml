@@ -138,6 +138,10 @@ let rec eval exp env cont = match exp with
 		              eval e2 env (fun e2' -> cont (Cons (e1', e2'))))
   | Cons (Sym s, r) when List.mem s rwords ->
      let len = List.length (flatten r) in argc_error len (Sym s)
+  | Cons (Sym "-", Cons (e, Nil)) ->
+     let take_int e = match e with Int (i) -> i | e -> wrong_type_error e in
+     let e' = eval e env id in
+     Int (- (take_int e'))
   | Cons (Sym op, r) when List.mem op opsym ->
      let elst' = List.map (fun e -> eval e env id) (flatten r) in
      let len = List.length elst' in
