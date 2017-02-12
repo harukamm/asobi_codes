@@ -36,8 +36,8 @@
 (define (eval-var e env) (if (atom e) (if (eq (get-env env e) nil) e (get-env env e)) (eval-if e env)))
 (define (eval-if e env) (if (eq `if (car e)) (if (eval (pair-snd e) env) (eval (pair-thd e) env) (eval (pair-fth e) env)) (eval-quote e env)))
 (define (eval-quote e env) (if (eq `qt (car e)) (pair-snd e) (eval-lambda e env)))
-(define (eval-lambda e env) (if (eq `lambda (car e)) e (eval-define e env)))
-(define (eval-define e env) (if (eq `define (car e)) e (eval-atom e env)))
+(define (eval-lambda e env) (if (eq `lambda (car e)) (cons `lambda (cons (pair-snd e) (cons env (cons (pair-thd e) nil)))) (eval-define e env)))
+(define (eval-define e env) (if (eq `define (car e)) (cons `lambda (cons (cdr (pair-snd e)) (cons env (cons (pair-thd e) nil)))) (eval-atom e env)))
 (define (eval-atom e env) (if (eq `atom (car e)) (atom (eval (pair-snd e) env)) (eval-eq e env)))
 (define (eval-eq e env) (if (eq `eq (car e)) (eq (eval (pair-snd e) env) (eval (pair-thd e) env)) (eval-car e env)))
 (define (eval-car e env) (if (eq `car (car e)) (car (eval (pair-snd e) env)) (eval-cdr e env)))
@@ -48,7 +48,7 @@
 (define (eval-sub e env) (if (eq `- (car e)) (if (eq (cdr (cdr e)) nil) (- (eval (pair-snd e) env)) (lst-sub (evals (cdr e) env))) (eval-times e env)))
 (define (eval-times e env) (if (eq `* (car e)) (lst-times (evals (cdr e) env)) (eval-div e env)))
 (define (eval-div e env) (if (eq `/ (car e)) (lst-div (evals (cdr e) env)) (eval-app e env)))
-(define (eval-app e env) (if (eq `lambda (car (eval (car e) env))) (eval (pair-thd (eval (car e) env)) (adds-env env (pair-snd (eval (car e) env)) (evals (cdr e) env))) nil))
+(define (eval-app e env) (if (eq `lambda (car (eval (car e) env))) (eval (pair-fth (eval (car e) env)) (adds-env (pair-thd (eval (car e) env)) (pair-snd (eval (car e) env)) (evals (cdr e) env))) nil))
 
 ; eval-test
 (eval `nil nil) ; nil
@@ -57,7 +57,7 @@
 (eval `(if t 1 2) nil) ; 1
 (eval `(qt hoge) nil) ; hoge
 (eval `(lambda (x) x) nil) ; (lambda (x) x)
-(eval `(define (f x y) nil) nil) ; (define (f x y) nil)
+(eval `(define (f x y) (+ x y a)) (add-env nil `a 10)) ; (define (f x y) nil)
 (eval `(atom t) nil) ; t
 (eval `(eq 1 1) nil) ; t
 (eval `(eq t1 t2) (add-env (add-env nil `t1 10) `t2 10)) ; t
@@ -69,5 +69,7 @@
 (eval `(- (+ 5 3 2)) nil) ; -10
 (eval `(+ 1 (+ 2 (+ 3 4))) nil) ; 10
 (eval `(* t1 t2) (add-env (add-env nil `t1 -1) `t2 -1)) ; 1
-(eval `(f 1) (add-env nil `f (lambda (x) x))) ; 1
-(eval `(f 1) (add-env nil `f (lambda (x) (eq x 1)))) ; 1
+(eval `(f 1) (add-env nil `f (lambda (x) () x))) ; 1
+(eval `(f 1) (add-env nil `f (lambda (x) ((a 5)) (+ a x 1)))) ; 7
+((lambda (x y z) (+ x y z)) 1 2 3) ; 10
+
