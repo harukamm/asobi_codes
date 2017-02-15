@@ -19,6 +19,9 @@ append_set :: Eq a => [a] -> [a] -> [a]
 append_set [] l2       = l2
 append_set (x : xs) l2 = append_set xs (opcons x l2)
 
+canbe_null :: Sym -> Grammer -> Bool
+canbe_null x = any (\(y, w) -> x == y && w == [Null])
+
 add_all_fs :: [First_t] -> First_t -> First_t
 add_all_fs []               (t, set) = (t, set)
 add_all_fs ((_, set') : fs) (t, set) = add_all_fs fs (t, append_set set' set)
@@ -28,3 +31,6 @@ update_f (t, set) []                = [(t, set)]
 update_f (t, set) ((t', set') : fs) = if t == t'
                                       then update_f (t, append_set set' set) fs
                                       else (t', set') : update_f (t, set) fs
+
+has_null :: [Sym] -> Bool
+has_null = any (Null==)
