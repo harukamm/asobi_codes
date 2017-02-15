@@ -19,3 +19,4 @@ g1 = [(NTerm "E",  [NTerm "T", NTerm "E'"]),
 main = do print (opcons 1 ns1)
           print (opcons 2 ns2)
           print (unduplicate ns2)
+          print (append_set [1, 5, 7] [3, 5, 7, 9])
