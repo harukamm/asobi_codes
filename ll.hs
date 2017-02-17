@@ -34,3 +34,27 @@ update_f (t, set) ((t', set') : fs) = if t == t'
 
 has_null :: [Sym] -> Bool
 has_null = any (Null==)
+
+app_rule :: FsRule -> Grammer -> [First_t] -> First_t -> [First_t]
+app_rule r g fs f = update_f f' fs2
+    where (f', fs2) = r g fs f
+
+map_app_rule :: FsRule -> Grammer -> [First_t] -> [First_t]
+map_app_rule r g fs = h fs fs
+    where h :: [First_t] -> [First_t] -> [First_t]
+          h []       fs' = fs'
+          h (f : fs) fs' = h fs (app_rule r g fs' f)
+
+fs_rules :: [FsRule]
+fs_rules = []
+
+apps :: [FsRule] -> Grammer -> [First_t] -> [First_t]
+apps []       g fs = fs
+apps (r : rs) g fs = apps rs g (map_app_rule r g fs)
+
+make_firsts :: Grammer -> [First_t]
+make_firsts g = map (\t -> assoc [t] fs') ts
+    where ts' = map fst g
+          ts = unduplicate ts'
+          fs = map (\t -> ([t], [])) ts
+          fs' = apps fs_rules g fs
