@@ -35,6 +35,17 @@ update_f (t, set) ((t', set') : fs) = if t == t'
 has_null :: [Sym] -> Bool
 has_null = any (Null==)
 
+fs_rule1 :: FsRule
+fs_rule1 _ fs ([Term x], set) = (f, fs)
+    where f = ([Term x], [Term x])
+fs_rule1 _ fs f               = (f, fs)
+
+fs_rule2 :: FsRule
+fs_rule2 g fs ([x], set) = (f, fs)
+    where set' = if canbe_null x g then opcons Null set else set
+          f = ([x], set')
+fs_rule2 _ fs f          = (f, fs)
+
 app_rule :: FsRule -> Grammer -> [First_t] -> First_t -> [First_t]
 app_rule r g fs f = update_f f' fs2
     where (f', fs2) = r g fs f
@@ -46,7 +57,7 @@ map_app_rule r g fs = h fs fs
           h (f : fs) fs' = h fs (app_rule r g fs' f)
 
 fs_rules :: [FsRule]
-fs_rules = []
+fs_rules = [fs_rule1, fs_rule2]
 
 apps :: [FsRule] -> Grammer -> [First_t] -> [First_t]
 apps []       g fs = fs
