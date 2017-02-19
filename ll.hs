@@ -1,3 +1,5 @@
+-- https://ja.wikipedia.org/wiki/LL法
+-- https://www.jambe.co.nz/UNI/FirstAndFollowSets.html
 module LL where
 
 data Sym = Term String | NTerm String | Null | EOF deriving (Show, Eq)
@@ -46,6 +48,10 @@ assoc t ((t', set) : fs) = if t == t' then (t', set) else assoc t fs
 has_null :: [Sym] -> Bool
 has_null = any (Null==)
 
+remove_all :: Sym -> [Sym] -> [Sym]
+remove_all x []       = []
+remove_all x (y : ys) = if x == y then remove_all x ys else y : (remove_all x ys)
+
 fs_rule1 :: FsRule
 fs_rule1 _ fs ([Term x], set) = (f, fs)
     where f = ([Term x], [Term x])
@@ -63,6 +69,17 @@ fs_rule3 g fs ([x], set) = (f, fs)
           cfs = map (\w -> if exist w fs then assoc w fs else first g fs w) cs
           f = add_all_fs cfs ([x], set)
 fs_rule3 _ fs f          = (f, fs)
+
+fs_rule4 :: FsRule
+fs_rule4 g fs ([], set)     = (([], set), fs)
+fs_rule4 g fs (x : xs, set) = if not (has_null setx) then ((x : xs, setx), fs)
+                              else if xsfs_null
+                                   then ((x : xs, opcons Null set), fs)
+                                   else ((x : xs, set), fs')
+    where (_, setx) = if exist [x] fs then assoc [x] fs else first g fs [x]
+          xs_fs = map (\w -> if exist [w] fs then assoc [w] fs else first g fs [w]) xs
+          xsfs_null = foldl (\b (_, set) -> (has_null set) && b) True xs_fs
+          fs' = update_f ([x], append_set (remove_all Null set) setx) fs
 
 app_rule :: FsRule -> Grammer -> [First_t] -> First_t -> [First_t]
 app_rule r g fs f = update_f f' fs2
@@ -85,7 +102,7 @@ first :: Grammer -> [First_t] -> [Sym] -> First_t
 first g fs []             = ([], [])
 first g fs (Null : xs)    = (Null : xs, [])
 first g fs (Term x : xs)  = (Term x : xs, [Term x])
-first g fs (NTerm x : xs) = (NTerm x : xs, [])
+first g fs (NTerm x : xs) = fst (fs_rule4 g fs (NTerm x : xs, []))
 
 make_firsts :: Grammer -> [First_t]
 make_firsts g = map (\t -> assoc [t] fs') ts
