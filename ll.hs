@@ -9,6 +9,7 @@ type Grammer = [Prod]
 type First_t = ([Sym], [Sym])
 type FsRule = Grammer -> [First_t] -> First_t -> (First_t, [First_t])
 type Follow_t = ([Sym], [Sym])
+type FoRule = Grammer -> [Follow_t] -> Follow_t -> (Follow_t, [Follow_t])
 
 opcons :: Eq a => a -> [a] -> [a]
 opcons x xs = if any (x==) xs then xs else x : xs
@@ -27,6 +28,21 @@ append_set (x : xs) l2 = append_set xs (opcons x l2)
 canbe_null :: Sym -> Grammer -> Bool
 canbe_null x = any (\(y, w) -> x == y && w == [Null])
 
+has_null :: [Sym] -> Bool
+has_null = any (Null==)
+
+remove_all :: Sym -> [Sym] -> [Sym]
+remove_all x []       = []
+remove_all x (y : ys) = if x == y then remove_all x ys else y : (remove_all x ys)
+
+is_whole_term :: [Sym] -> Bool
+is_whole_term []            = True
+is_whole_term (Term _ : xs) = is_whole_term xs
+is_whole_term (_ : xs)      = False
+
+-- ===========================
+-- First Sets
+-- ===========================
 add_all_fs :: [First_t] -> First_t -> First_t
 add_all_fs []               (t, set) = (t, set)
 add_all_fs ((_, set') : fs) (t, set) = add_all_fs fs (t, append_set set' set)
@@ -44,13 +60,6 @@ exist t ((t', _) : fs) = (t == t') || (exist t fs)
 assoc :: [Sym] -> [First_t] -> First_t
 assoc t []               = error "not_found"
 assoc t ((t', set) : fs) = if t == t' then (t', set) else assoc t fs
-
-has_null :: [Sym] -> Bool
-has_null = any (Null==)
-
-remove_all :: Sym -> [Sym] -> [Sym]
-remove_all x []       = []
-remove_all x (y : ys) = if x == y then remove_all x ys else y : (remove_all x ys)
 
 fs_rule1 :: FsRule
 fs_rule1 _ fs ([Term x], set) = (f, fs)
@@ -110,3 +119,56 @@ make_firsts g = map (\t -> assoc [t] fs') ts
           ts = unduplicate ts'
           fs = map (\t -> ([t], [])) ts
           fs' = apps fs_rules g fs
+
+-- ===========================
+-- Follow Sets
+-- ===========================
+fo_rule1 :: FoRule
+fo_rule1 ((NTerm x, _) : g) fos ([NTerm y], set) =
+    if x == y then (([NTerm y], opcons EOF set), fos)
+    else (([NTerm y], set), fos)
+fo_rule1 g fos f                                 = (f, fos)
+
+fo_rule2 :: FoRule
+fo_rule2 g fos ([x], set) = (([x], set), fos')
+    where cs = all_codomain x g
+          fos' = foldl (\l w -> case (reverse w) of
+                                  (Term b) : (NTerm lb) : res ->
+                                      update_f ([NTerm lb], [Term b]) l
+                                  _ -> l) fos cs
+fo_rule2 g fos f          = (f, fos)
+
+fo_rule3 :: FoRule
+fo_rule3 g fos ([x], set) = (([x], set), fos')
+    where cs = all_codomain x g
+          fos' = foldl (\l w -> case (reverse w) of
+                                  (NTerm lb) : res ->
+                                      if is_whole_term res
+                                      then update_f ([NTerm lb], set) l
+                                      else l
+                                  _ -> l) fos cs
+fo_rule3 g fos f          = (f, fos)
+
+take_first :: Grammer -> [Sym] -> First_t
+take_first g t = assoc t (make_firsts g)
+
+fo_rule4 :: FoRule
+fo_rule4 g fos ([x], set) = (([x], set), fos')
+    where cs = all_codomain x g
+          fos' = foldl (\l w -> case (reverse w) of
+                                  (NTerm b) : (NTerm lb) : res ->
+                                      if is_whole_term res
+                                             && has_null (snd (take_first g [NTerm lb]))
+                                      then update_f ([NTerm lb], set) l
+                                      else l
+                                  _ -> l) fos cs
+
+fo_rules :: [FoRule]
+fo_rules = [fo_rule1, fo_rule2, fo_rule3, fo_rule4, fo_rule3, fo_rule2, fo_rule3, fo_rule4]
+
+make_follows :: Grammer -> [Follow_t]
+make_follows g = map (\t -> assoc [t] fos') ts
+    where ts' = map fst g
+          ts = unduplicate ts'
+          fos = map (\t -> ([t], [])) ts
+          fos' = apps fo_rules g fos
