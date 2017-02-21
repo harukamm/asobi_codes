@@ -123,6 +123,11 @@ make_firsts g = map (\t -> assoc [t] fs') ts
 -- ===========================
 -- Follow Sets
 -- ===========================
+take_first :: Grammer -> [Sym] -> First_t
+take_first g t = if exist t fs then assoc t fs else f
+    where fs = make_firsts g
+          f = first g fs t
+
 fo_rule1 :: FoRule
 fo_rule1 ((NTerm x, _) : g) fos ([NTerm y], set) =
     if x == y then (([NTerm y], opcons EOF set), fos)
@@ -132,10 +137,15 @@ fo_rule1 g fos f                                 = (f, fos)
 fo_rule2 :: FoRule
 fo_rule2 g fos ([x], set) = (([x], set), fos')
     where cs = all_codomain x g
-          fos' = foldl (\l w -> case (reverse w) of
-                                  (Term b) : (NTerm lb) : res ->
-                                      update_f ([NTerm lb], [Term b]) l
-                                  _ -> l) fos cs
+          fos' = foldl
+                 (\l w -> case (reverse w) of
+                            (Term b) : (NTerm lb) : res ->
+                                update_f ([NTerm lb], [Term b]) l
+                            (NTerm b) : (NTerm lb) : res ->
+                                update_f ([NTerm lb], setb) l
+                                    where fb = take_first g [NTerm b]
+                                          setb = remove_all Null (snd fb)
+                            _ -> l) fos cs
 fo_rule2 g fos f          = (f, fos)
 
 fo_rule3 :: FoRule
@@ -143,28 +153,25 @@ fo_rule3 g fos ([x], set) = (([x], set), fos')
     where cs = all_codomain x g
           fos' = foldl (\l w -> case (reverse w) of
                                   (NTerm lb) : res ->
-                                      if is_whole_term res
-                                      then update_f ([NTerm lb], set) l
-                                      else l
+                                      update_f ([NTerm lb], set) l
                                   _ -> l) fos cs
 fo_rule3 g fos f          = (f, fos)
-
-take_first :: Grammer -> [Sym] -> First_t
-take_first g t = assoc t (make_firsts g)
 
 fo_rule4 :: FoRule
 fo_rule4 g fos ([x], set) = (([x], set), fos')
     where cs = all_codomain x g
-          fos' = foldl (\l w -> case (reverse w) of
-                                  (NTerm b) : (NTerm lb) : res ->
-                                      if is_whole_term res
-                                             && has_null (snd (take_first g [NTerm lb]))
-                                      then update_f ([NTerm lb], set) l
-                                      else l
-                                  _ -> l) fos cs
+          fos' = foldl
+                 (\l w -> case (reverse w) of
+                            (NTerm b) : (NTerm lb) : res ->
+                                if has_null (snd (take_first g [NTerm b]))
+                                then update_f ([NTerm lb], set) l
+                                else l
+                            (Term b) : (NTerm lb) : res ->
+                                update_f ([NTerm lb], [Term b]) l
+                            _ -> l) fos cs
 
 fo_rules :: [FoRule]
-fo_rules = [fo_rule1, fo_rule2, fo_rule3, fo_rule4, fo_rule3, fo_rule2, fo_rule3, fo_rule4]
+fo_rules = [fo_rule1, fo_rule2, fo_rule3, fo_rule3, fo_rule4, fo_rule3, fo_rule4]
 
 make_follows :: Grammer -> [Follow_t]
 make_follows g = map (\t -> assoc [t] fos') ts
