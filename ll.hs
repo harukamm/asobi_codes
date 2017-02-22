@@ -135,7 +135,7 @@ fo_rule1 ((NTerm x, _) : g) fos ([NTerm y], set) =
 fo_rule1 g fos f                                 = (f, fos)
 
 fo_rule2 :: FoRule
-fo_rule2 g fos ([x], set) = (([x], set), fos')
+fo_rule2 g fos ([x], set) = (([x], set), fos'')
     where cs = all_codomain x g
           fos' = foldl
                  (\l w -> case (reverse w) of
@@ -146,6 +146,11 @@ fo_rule2 g fos ([x], set) = (([x], set), fos')
                                     where fb = take_first g [NTerm b]
                                           setb = remove_all Null (snd fb)
                             _ -> l) fos cs
+          fos'' = foldl
+                  (\l w -> case w of
+                             (Term lb) : (Term b) : res ->
+                                 update_f ([Term lb], [Term b]) l
+                             _ -> l) fos' cs
 fo_rule2 g fos f          = (f, fos)
 
 fo_rule3 :: FoRule
@@ -174,7 +179,7 @@ fo_rules :: [FoRule]
 fo_rules = [fo_rule1, fo_rule2, fo_rule3, fo_rule3, fo_rule4, fo_rule3, fo_rule4]
 
 make_follows :: Grammer -> [Follow_t]
-make_follows g = map (\t -> assoc [t] fos') ts
+make_follows g = fos' --map (\t -> assoc [t] fos') ts
     where ts' = map fst g
           ts = unduplicate ts'
           fos = map (\t -> ([t], [])) ts
