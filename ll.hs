@@ -86,9 +86,10 @@ fs_rule4 g fs (x : xs, set) = if not (has_null setx) then ((x : xs, setx), fs)
                                    then ((x : xs, opcons Null set), fs)
                                    else ((x : xs, set), fs')
     where (_, setx) = if exist [x] fs then assoc [x] fs else first g fs [x]
+          (_, setxs) = first g fs xs
           xs_fs = map (\w -> if exist [w] fs then assoc [w] fs else first g fs [w]) xs
           xsfs_null = foldl (\b (_, set) -> (has_null set) && b) True xs_fs
-          fs' = update_f ([x], append_set (remove_all Null set) setx) fs
+          fs' = update_f ([x], append_set setx setxs) fs
 
 app_rule :: FsRule -> Grammer -> [First_t] -> First_t -> [First_t]
 app_rule r g fs f = update_f f' fs2
