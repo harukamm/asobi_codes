@@ -1,6 +1,6 @@
 #include <iostream>
 
-#define N 15
+#define N 30
 
 int board[N][2];
 int queen;
@@ -72,20 +72,18 @@ void print_board() {
   free(pos);
 }
 
-bool nqueen(int sx) {
+bool nqueen(int x) {
   if(queen == N)
     return true;
   int tmp = queen;
-  for(int x = sx; x < N && queen < N; x++) {
-    for(int y = 0; y < N && queen < N; y++) {
-      if(!is_candidate(x, y))
-        continue;
-      put_on(x, y);
-      if(nqueen(x + 1))
-        return true;
-      else
-        queen = tmp; // Revert putting queens
-    }
+  for(int y = 0; y < N && queen < N; y++) {
+    if(!is_candidate(x, y))
+      continue;
+    put_on(x, y);
+    if(nqueen(x + 1))
+      return true;
+    else
+      queen = tmp; // Revert putting queens
   }
   return false;
 }
